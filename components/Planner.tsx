@@ -9,6 +9,7 @@ import { ReviewStep } from './ReviewStep';
 import { ResultStep } from './ResultStep';
 import { LoadingSpinner } from './LoadingSpinner';
 import { generateBusinessPlan, generateNameSuggestions } from '../services/geminiService';
+import { db } from '../services/db';
 import type { FormData, SavedPlan, UserProfile } from '../types';
 import { STEPS } from '../types';
 
@@ -26,86 +27,59 @@ const initialFormData: FormData = {
   templateStyle: 'Standard Professional',
 };
 
-const STORAGE_KEY = 'ai_business_plan_progress';
-const HISTORY_KEY = 'ai_business_plan_history';
-
 export const Planner: React.FC<PlannerProps> = ({ user }) => {
-  const [currentStep, setCurrentStep] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return typeof parsed.currentStep === 'number' ? parsed.currentStep : 0;
-      }
-    } catch (e) {
-      console.error('Failed to load progress from local storage', e);
-    }
-    return 0;
-  });
-
-  const [formData, setFormData] = useState<FormData>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return { ...initialFormData, ...parsed.formData };
-      }
-    } catch (e) {
-      console.error('Failed to load form data from local storage', e);
-    }
-    return initialFormData;
-  });
-
+  const [currentStep, setCurrentStep] = useState(0);
+  const [formData, setFormData] = useState<FormData>(initialFormData);
   const [isLoading, setIsLoading] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const [businessPlan, setBusinessPlan] = useState<string>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return parsed.businessPlan || '';
-      }
-    } catch (e) {
-      console.error('Failed to load business plan from local storage', e);
-    }
-    return '';
-  });
+  const [businessPlan, setBusinessPlan] = useState<string>('');
   
   const totalSteps = STEPS.length;
 
+  // Load draft on mount
   useEffect(() => {
-    const stateToSave = {
-      currentStep,
-      formData,
-      businessPlan
+    const loadDraft = async () => {
+        try {
+            const saved = await db.plans.getDraft(user.id);
+            if (saved) {
+                if (typeof saved.currentStep === 'number') setCurrentStep(saved.currentStep);
+                if (saved.formData) setFormData({ ...initialFormData, ...saved.formData });
+                if (saved.businessPlan) setBusinessPlan(saved.businessPlan);
+            }
+        } catch (e) {
+            console.error('Failed to load draft', e);
+        } finally {
+            setIsInitializing(false);
+        }
     };
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
-    } catch (e) {
-      console.error('Failed to save progress to local storage', e);
-      // Fallback: If full plan is too big (likely due to images), save without it so user doesn't lose form data
-      try {
-          const stateToSaveLite = {
-            currentStep,
-            formData,
-            businessPlan: '' // Sacrifice the generated result to save the inputs
-          };
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSaveLite));
-      } catch (e2) {
-          console.error('Failed to save even lite progress', e2);
-      }
-    }
-  }, [currentStep, formData, businessPlan]);
+    loadDraft();
+  }, [user.id]);
 
-  // Function to save plan to history
-  const saveToHistory = useCallback((planContent: string, data: FormData) => {
+  // Save draft on change
+  useEffect(() => {
+    if (isInitializing) return;
+    
+    const saveData = {
+        currentStep,
+        formData,
+        businessPlan: currentStep === totalSteps - 1 ? businessPlan : '' // Don't save full plan in draft if done? Actually we should.
+    };
+    
+    // Debounce save slightly
+    const timer = setTimeout(() => {
+        db.plans.saveDraft(user.id, saveData);
+    }, 500);
+    
+    return () => clearTimeout(timer);
+  }, [currentStep, formData, businessPlan, user.id, isInitializing, totalSteps]);
+
+  // Function to save plan to history (DB)
+  const saveToHistory = useCallback(async (planContent: string, data: FormData) => {
       try {
-          const historyJson = localStorage.getItem(HISTORY_KEY);
-          let history: SavedPlan[] = historyJson ? JSON.parse(historyJson) : [];
-          
           const newPlan: SavedPlan = {
               id: crypto.randomUUID(),
+              userId: user.id,
               date: new Date().toISOString(),
               title: data.businessName ? `${data.businessName} Plan` : (data.businessIdea.substring(0, 60) + (data.businessIdea.length > 60 ? '...' : '')),
               style: data.templateStyle,
@@ -113,29 +87,11 @@ export const Planner: React.FC<PlannerProps> = ({ user }) => {
               formData: data
           };
           
-          history.push(newPlan);
-          
-          try {
-            localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
-          } catch (e: any) {
-             // If quota exceeded, try to make space by removing oldest entries
-             if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
-                 // Keep only the 3 most recent plans
-                 if (history.length > 3) {
-                     const trimmedHistory = history.slice(-3);
-                     localStorage.setItem(HISTORY_KEY, JSON.stringify(trimmedHistory));
-                 } else {
-                     // If we only have a few but they are huge, keep just the new one
-                     localStorage.setItem(HISTORY_KEY, JSON.stringify([newPlan]));
-                 }
-             } else {
-                 throw e;
-             }
-          }
+          await db.plans.create(newPlan);
       } catch (e) {
           console.error("Failed to save to history", e);
       }
-  }, []);
+  }, [user.id]);
 
   const handleNext = useCallback(async () => {
     if (currentStep < totalSteps - 1) {
@@ -146,7 +102,7 @@ export const Planner: React.FC<PlannerProps> = ({ user }) => {
           // Pass user plan to service to select correct model
           const plan = await generateBusinessPlan(formData, user.plan);
           setBusinessPlan(plan);
-          saveToHistory(plan, formData); // Auto save
+          await saveToHistory(plan, formData); // Auto save to DB
           setCurrentStep(step => step + 1);
         } catch (err: any) {
           setError(err.message || 'An unexpected error occurred.');
@@ -174,13 +130,13 @@ export const Planner: React.FC<PlannerProps> = ({ user }) => {
     setFormData(prev => ({ ...prev, templateStyle: style }));
   }, []);
 
-  const handleRestart = useCallback(() => {
+  const handleRestart = useCallback(async () => {
       setFormData(initialFormData);
       setBusinessPlan('');
       setError(null);
       setCurrentStep(0);
-      localStorage.removeItem(STORAGE_KEY);
-  }, []);
+      await db.plans.saveDraft(user.id, null); // Clear draft
+  }, [user.id]);
 
   const isNextDisabled = useMemo(() => {
     if (currentStep === 0) return false;
@@ -190,6 +146,10 @@ export const Planner: React.FC<PlannerProps> = ({ user }) => {
     }
     return currentStepFields.some(field => !formData[field as keyof FormData]);
   }, [currentStep, formData]);
+
+  if (isInitializing) {
+      return <div className="min-h-[400px] flex items-center justify-center"><LoadingSpinner /></div>;
+  }
 
   const renderContent = () => {
     if (isLoading) {

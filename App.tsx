@@ -17,6 +17,7 @@ import { PrivacyPage } from './components/PrivacyPage';
 import { TermsPage } from './components/TermsPage';
 import { ResultStep } from './components/ResultStep';
 import { CheckoutPage } from './components/CheckoutPage';
+import { db } from './services/db';
 import type { UserProfile, PlanType } from './types';
 
 export type View = 
@@ -37,56 +38,57 @@ export type View =
   | 'checkout';
 
 export default function App() {
-  const [user, setUser] = useState<UserProfile | null>(() => {
-    const stored = localStorage.getItem('user_profile');
-    return stored ? JSON.parse(stored) : null;
-  });
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [isLoadingUser, setIsLoadingUser] = useState(true);
   
-  const [currentView, setCurrentView] = useState<View>(() => {
-     if (localStorage.getItem('user_profile')) {
-         return 'planner';
-     }
-     return 'landing';
-  });
+  const [currentView, setCurrentView] = useState<View>('landing');
   
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [selectedBlogPostId, setSelectedBlogPostId] = useState<number | null>(null);
   const [sharedPlanContent, setSharedPlanContent] = useState<string>('');
   const [currentShareId, setCurrentShareId] = useState<string | null>(null);
 
+  // Initialize Auth
   useEffect(() => {
-    if (user) {
-        localStorage.setItem('user_profile', JSON.stringify(user));
-    } else {
-        localStorage.removeItem('user_profile');
-    }
-  }, [user]);
-
-  useEffect(() => {
-    // Check for shared plan in URL
-    const params = new URLSearchParams(window.location.search);
-    const shareId = params.get('share');
-    if (shareId) {
-        const content = localStorage.getItem(`share_${shareId}`);
-        if (content) {
-            setSharedPlanContent(content);
-            setCurrentShareId(shareId);
-            setCurrentView('shared-plan');
-        } else {
-            // Invalid or expired share link, remove it from URL
-            window.history.replaceState({}, '', window.location.pathname);
+    const initAuth = async () => {
+        try {
+            const session = await db.auth.getSession();
+            if (session) {
+                setUser(session);
+                setCurrentView('planner');
+            }
+        } catch (e) {
+            console.error("Auth init error", e);
+        } finally {
+            setIsLoadingUser(false);
         }
-    }
+    };
+    initAuth();
   }, []);
 
-  const handleLogin = () => {
-    // Mock user data
-    const mockUser: UserProfile = {
-        name: 'John Doe',
-        email: 'john@example.com',
-        plan: 'starter'
+  // Check for shared plan in URL
+  useEffect(() => {
+    const checkShare = async () => {
+        const params = new URLSearchParams(window.location.search);
+        const shareId = params.get('share');
+        if (shareId) {
+            const content = await db.shares.get(shareId);
+            if (content) {
+                setSharedPlanContent(content);
+                setCurrentShareId(shareId);
+                setCurrentView('shared-plan');
+            } else {
+                // Invalid or expired share link, remove it from URL
+                window.history.replaceState({}, '', window.location.pathname);
+            }
+        }
     };
-    setUser(mockUser);
+    checkShare();
+  }, []);
+
+  const handleLogin = async (email: string) => {
+    const user = await db.auth.login(email);
+    setUser(user);
     
     if (selectedPlanId && selectedPlanId !== 'tier-starter') {
         setCurrentView('checkout');
@@ -95,14 +97,9 @@ export default function App() {
     }
   };
   
-  const handleSignup = () => {
-      // Mock signup
-      const mockUser: UserProfile = {
-        name: 'New User',
-        email: 'user@example.com',
-        plan: 'starter'
-    };
-    setUser(mockUser);
+  const handleSignup = async (name: string, email: string) => {
+    const user = await db.auth.signup(name, email);
+    setUser(user);
 
     if (selectedPlanId && selectedPlanId !== 'tier-starter') {
         setCurrentView('checkout');
@@ -111,7 +108,8 @@ export default function App() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await db.auth.logout();
     setUser(null);
     setCurrentView('landing');
     setSelectedPlanId(null);
@@ -131,27 +129,40 @@ export default function App() {
       }
       
       if (planId === 'tier-starter') {
-           // Downgrade or stay on free
-           const updatedUser = { ...user, plan: 'starter' as PlanType };
-           setUser(updatedUser);
+           // Downgrade or stay on free logic would go here
+           // For now just redirect
            setCurrentView('planner');
       } else {
           setCurrentView('checkout');
       }
   };
 
-  const handleCheckoutComplete = () => {
+  const handleCheckoutComplete = async () => {
       if (user && selectedPlanId) {
           const planMap: Record<string, PlanType> = {
               'tier-pro': 'pro',
               'tier-enterprise': 'enterprise'
           };
           const newPlan = planMap[selectedPlanId] || 'starter';
-          setUser({ ...user, plan: newPlan });
+          
+          const updatedUser = await db.auth.updatePlan(user.id, newPlan);
+          if (updatedUser) setUser(updatedUser);
+          
           setSelectedPlanId(null);
           setCurrentView('planner');
       }
   };
+
+  if (isLoadingUser) {
+      return (
+          <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900">
+              <svg className="animate-spin h-8 w-8 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+          </div>
+      );
+  }
 
   const renderView = () => {
     if (user && currentView === 'planner') {
@@ -207,7 +218,7 @@ export default function App() {
                     }} 
                     isReadOnly={true} 
                     initialShareId={currentShareId}
-                    userPlan={'starter'} // Read only view doesn't allow PDF anyway
+                    userPlan={'starter'}
                 />
             </div>
         );

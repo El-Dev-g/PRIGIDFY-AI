@@ -1,6 +1,7 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import type { PlanType } from '../types';
+import { db } from '../services/db';
 
 interface ResultStepProps {
   businessPlan: string;
@@ -122,6 +123,7 @@ export const ResultStep: React.FC<ResultStepProps> = ({ businessPlan, onRestart,
      }
      return null;
   });
+  const [isSharing, setIsSharing] = useState(false);
 
   const canDownloadPDF = userPlan && userPlan !== 'starter';
 
@@ -173,7 +175,7 @@ export const ResultStep: React.FC<ResultStepProps> = ({ businessPlan, onRestart,
     }
   }, [canDownloadPDF]);
 
-  const handleShare = useCallback(() => {
+  const handleShare = useCallback(async () => {
     if (shareUrl) {
         navigator.clipboard.writeText(shareUrl).then(() => {
             setShareCopied(true);
@@ -182,52 +184,24 @@ export const ResultStep: React.FC<ResultStepProps> = ({ businessPlan, onRestart,
         return;
     }
 
-    // Generate a simple ID
-    const shareId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-    
-    const saveShare = () => {
-         localStorage.setItem(`share_${shareId}`, businessPlan);
-         const url = `${window.location.origin}${window.location.pathname}?share=${shareId}`;
-         setShareUrl(url);
-         
-         navigator.clipboard.writeText(url).then(() => {
-             setShareCopied(true);
-             setTimeout(() => setShareCopied(false), 2000);
-         });
-    };
+    setIsSharing(true);
 
     try {
-        saveShare();
+        const shareId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+        await db.shares.create(shareId, businessPlan);
+        
+        const url = `${window.location.origin}${window.location.pathname}?share=${shareId}`;
+        setShareUrl(url);
+         
+        navigator.clipboard.writeText(url).then(() => {
+             setShareCopied(true);
+             setTimeout(() => setShareCopied(false), 2000);
+        });
     } catch (e: any) {
         console.error("Failed to share plan", e);
-        
-        // Handle QuotaExceededError
-        if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
-             // Attempt to clear old shares
-             let keysToRemove = [];
-             for (let i = 0; i < localStorage.length; i++) {
-                 const key = localStorage.key(i);
-                 if (key && key.startsWith('share_')) {
-                     keysToRemove.push(key);
-                 }
-             }
-             
-             if (keysToRemove.length > 0) {
-                 // Remove all existing share links to make space for the new one
-                 keysToRemove.forEach(k => localStorage.removeItem(k));
-                 
-                 // Try saving again
-                 try {
-                     saveShare();
-                 } catch (retryE) {
-                     alert("Storage is full. Please download the PDF instead.");
-                 }
-             } else {
-                 alert("Storage is full (likely due to history or saved progress). Please clear history or download the PDF.");
-             }
-        } else {
-             alert("Could not create share link. Local storage might be full or disabled.");
-        }
+        alert("Could not create share link. Please try again.");
+    } finally {
+        setIsSharing(false);
     }
   }, [businessPlan, shareUrl]);
 
@@ -304,15 +278,23 @@ export const ResultStep: React.FC<ResultStepProps> = ({ businessPlan, onRestart,
 
               <button
                   onClick={handleShare}
+                  disabled={isSharing}
                   className={`inline-flex items-center rounded-lg border px-4 py-2 text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition ${
                       shareUrl 
                       ? 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300' 
                       : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-700'
                   }`}
               >
-                  <svg className="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                  </svg>
+                  {isSharing ? (
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  ) : (
+                    <svg className="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                    </svg>
+                  )}
                   {shareCopied ? 'Link Copied!' : shareUrl ? 'Copy Share Link' : 'Create Share Link'}
               </button>
 

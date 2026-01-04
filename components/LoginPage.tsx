@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 
 interface LoginPageProps {
-  onLogin: () => void;
+  onLogin: (email: string) => Promise<void>;
   onNavigateToSignup: () => void;
 }
 
@@ -24,13 +24,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onNavigateToSignu
       return;
     }
 
-    // Simulate network request
-    setTimeout(() => {
-      setIsLoading(false);
-      // For demo purposes, we accept any non-empty credentials
-      // In a real app, you would validate against a backend here
-      onLogin();
-    }, 1000);
+    try {
+        await onLogin(email);
+    } catch (err) {
+        setError("Login failed. Please try again.");
+    } finally {
+        setIsLoading(false);
+    }
   };
 
   return (

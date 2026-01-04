@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import type { SavedPlan, UserProfile } from '../types';
 import { ResultStep } from './ResultStep';
+import { db } from '../services/db';
 
 interface HistoryViewProps {
   user: UserProfile;
@@ -10,31 +11,35 @@ interface HistoryViewProps {
 export const HistoryView: React.FC<HistoryViewProps> = ({ user }) => {
   const [history, setHistory] = useState<SavedPlan[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<SavedPlan | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('ai_business_plan_history');
-      if (saved) {
-        setHistory(JSON.parse(saved).reverse()); // Newest first
-      }
-    } catch (e) {
-      console.error('Failed to load history', e);
-    }
-  }, []);
+    const loadPlans = async () => {
+        try {
+            const plans = await db.plans.list(user.id);
+            setHistory(plans);
+        } catch (e) {
+            console.error('Failed to load history', e);
+        } finally {
+            setLoading(false);
+        }
+    };
+    loadPlans();
+  }, [user.id]);
 
-  const handleDelete = (id: string, e: React.MouseEvent) => {
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (confirm('Are you sure you want to delete this plan? This action cannot be undone.')) {
-        const updated = history.filter(p => p.id !== id);
-        setHistory(updated);
-        // We need to reverse it back to chronological order for storage if strictly following initial logic, 
-        // but storage order doesn't strictly matter as long as we sort on load. 
-        // To be safe, let's just store the updated array as is (which is reverse chronological).
-        // Wait, the load reverses it. So we should store it in original order (chronological).
-        localStorage.setItem('ai_business_plan_history', JSON.stringify([...updated].reverse())); 
-        
-        if (selectedPlan?.id === id) {
-            setSelectedPlan(null);
+        try {
+            await db.plans.delete(id);
+            const updated = history.filter(p => p.id !== id);
+            setHistory(updated);
+            
+            if (selectedPlan?.id === id) {
+                setSelectedPlan(null);
+            }
+        } catch (error) {
+            console.error("Failed to delete", error);
         }
     }
   };
@@ -70,7 +75,14 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ user }) => {
         <p className="mt-2 text-slate-600 dark:text-slate-400">Manage and revisit your generated business strategies.</p>
       </div>
 
-      {history.length === 0 ? (
+      {loading ? (
+        <div className="flex justify-center p-20">
+           <svg className="animate-spin h-10 w-10 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+           </svg>
+        </div>
+      ) : history.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-20 text-center">
             <div className="rounded-full bg-indigo-50 dark:bg-indigo-900/20 p-6 mb-4">
                  <svg className="w-10 h-10 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">

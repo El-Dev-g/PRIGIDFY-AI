@@ -11,6 +11,7 @@ export interface FormData {
 
 export interface SavedPlan {
   id: string;
+  userId: string; // Added to link plan to user
   date: string;
   title: string;
   style: string;
@@ -21,6 +22,7 @@ export interface SavedPlan {
 export type PlanType = 'starter' | 'pro' | 'enterprise';
 
 export interface UserProfile {
+  id: string; // Added ID
   name: string;
   email: string;
   plan: PlanType;

@@ -1,12 +1,32 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 
 interface SignUpPageProps {
-  onSignup: () => void;
+  onSignup: (name: string, email: string) => Promise<void>;
   onNavigateToLogin: () => void;
 }
 
 export const SignUpPage: React.FC<SignUpPageProps> = ({ onSignup, onNavigateToLogin }) => {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+          await onSignup(name, email);
+      } catch (err: any) {
+          setError(err.message || "Failed to create account");
+      } finally {
+          setIsLoading(false);
+      }
+  };
+
   return (
     <div className="flex min-h-[80vh] flex-col justify-center px-6 py-12 lg:px-8 bg-white dark:bg-slate-900">
       <div className="sm:mx-auto sm:w-full sm:max-w-sm">
@@ -19,7 +39,12 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onSignup, onNavigateToLo
       </div>
 
       <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-sm">
-        <form className="space-y-6" onSubmit={(e) => { e.preventDefault(); onSignup(); }}>
+        <form className="space-y-6" onSubmit={handleSubmit}>
+            {error && (
+                <div className="rounded-md bg-red-50 dark:bg-red-900/30 p-4 mb-4">
+                  <p className="text-sm text-red-700 dark:text-red-200">{error}</p>
+                </div>
+            )}
             <div>
             <label htmlFor="name" className="block text-sm font-medium leading-6 text-slate-900 dark:text-slate-200">
               Full Name
@@ -31,6 +56,8 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onSignup, onNavigateToLo
                 type="text"
                 autoComplete="name"
                 required
+                value={name}
+                onChange={e => setName(e.target.value)}
                 className="block w-full rounded-md border-0 py-1.5 text-slate-900 dark:text-white shadow-sm ring-1 ring-inset ring-slate-300 dark:ring-slate-700 dark:bg-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
               />
             </div>
@@ -46,6 +73,8 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onSignup, onNavigateToLo
                 type="email"
                 autoComplete="email"
                 required
+                value={email}
+                onChange={e => setEmail(e.target.value)}
                 className="block w-full rounded-md border-0 py-1.5 text-slate-900 dark:text-white shadow-sm ring-1 ring-inset ring-slate-300 dark:ring-slate-700 dark:bg-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
               />
             </div>
@@ -62,6 +91,8 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onSignup, onNavigateToLo
                 type="password"
                 autoComplete="new-password"
                 required
+                value={password}
+                onChange={e => setPassword(e.target.value)}
                 className="block w-full rounded-md border-0 py-1.5 text-slate-900 dark:text-white shadow-sm ring-1 ring-inset ring-slate-300 dark:ring-slate-700 dark:bg-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
               />
             </div>
@@ -70,9 +101,10 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onSignup, onNavigateToLo
           <div>
             <button
               type="submit"
-              className="flex w-full justify-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-semibold leading-6 text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+              disabled={isLoading}
+              className="flex w-full justify-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-semibold leading-6 text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50"
             >
-              Sign Up
+              {isLoading ? 'Creating Account...' : 'Sign Up'}
             </button>
           </div>
         </form>
