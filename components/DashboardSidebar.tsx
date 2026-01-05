@@ -3,14 +3,14 @@ import React from 'react';
 
 interface DashboardSidebarProps {
   currentView: string;
-  onChangeView: (view: 'new-plan' | 'history' | 'profile') => void;
+  onChangeView: (view: 'new-plan' | 'history' | 'profile' | 'billing') => void;
   onLogout: () => void;
   isOpen: boolean;
   onClose: () => void;
 }
 
 export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({ currentView, onChangeView, onLogout, isOpen, onClose }) => {
-  const NavItem = ({ view, label, icon }: { view: 'new-plan' | 'history' | 'profile', label: string, icon: React.ReactNode }) => (
+  const NavItem = ({ view, label, icon }: { view: 'new-plan' | 'history' | 'profile' | 'billing', label: string, icon: React.ReactNode }) => (
     <button
       onClick={() => { onChangeView(view); onClose(); }}
       className={`group flex w-full items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200 ${
@@ -78,6 +78,16 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({ currentView,
           />
 
           <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mt-8 mb-4 px-4">Account</div>
+
+          <NavItem 
+            view="billing" 
+            label="Billing & Plans" 
+            icon={
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+              </svg>
+            }
+          />
 
           <NavItem 
             view="profile" 

@@ -121,6 +121,11 @@ export const Planner: React.FC<PlannerProps> = ({ user }) => {
     }
   }, [currentStep]);
 
+  const handleEdit = useCallback(() => {
+      // Go back to Review Step (index 8) to allow editing
+      setCurrentStep(totalSteps - 2);
+  }, [totalSteps]);
+
   const handleFormChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -161,7 +166,7 @@ export const Planner: React.FC<PlannerProps> = ({ user }) => {
             <h2 className="text-2xl font-bold text-red-600">Generation Failed</h2>
             <p className="mt-2 text-slate-600 dark:text-slate-400">{error}</p>
              <button
-              onClick={handleBack}
+              onClick={() => { setError(null); handleBack(); }}
               className="mt-6 inline-flex items-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition"
             >
               Go Back and Edit
@@ -188,7 +193,7 @@ export const Planner: React.FC<PlannerProps> = ({ user }) => {
 
     // Result Step (now index 9, id 10)
     if (stepData.id === '10') {
-       return <ResultStep businessPlan={businessPlan} onRestart={handleRestart} userPlan={user.plan}/>;
+       return <ResultStep businessPlan={businessPlan} onRestart={handleRestart} userPlan={user.plan} onEdit={handleEdit} />;
     }
 
     const fieldName = stepData.fields[0] as keyof FormData;

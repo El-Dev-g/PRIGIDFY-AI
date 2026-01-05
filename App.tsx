@@ -129,12 +129,16 @@ export default function App() {
       }
       
       if (planId === 'tier-starter') {
-           // Downgrade or stay on free logic would go here
-           // For now just redirect
+           // Downgrade logic if from Pricing Page (logged out)
+           // If logged in, this usually comes from Dashboard now
            setCurrentView('planner');
       } else {
           setCurrentView('checkout');
       }
+  };
+  
+  const handleUserUpdate = (updatedUser: UserProfile) => {
+      setUser(updatedUser);
   };
 
   const handleCheckoutComplete = async () => {
@@ -166,7 +170,14 @@ export default function App() {
 
   const renderView = () => {
     if (user && currentView === 'planner') {
-        return <DashboardLayout user={user} onLogout={handleLogout} />;
+        return (
+            <DashboardLayout 
+                user={user} 
+                onLogout={handleLogout} 
+                onSelectPlan={handleSelectPlan}
+                onPlanUpdate={handleUserUpdate}
+            />
+        );
     }
     
     switch (currentView) {
@@ -183,7 +194,7 @@ export default function App() {
             <CheckoutPage 
                 planId={selectedPlanId} 
                 onComplete={handleCheckoutComplete} 
-                onCancel={() => setCurrentView('pricing')} 
+                onCancel={() => setCurrentView('planner')} 
             /> 
         ) : <PricingPage onSelectPlan={handleSelectPlan} />;
       case 'about':

@@ -9,6 +9,7 @@ interface ResultStepProps {
   isReadOnly?: boolean;
   initialShareId?: string | null;
   userPlan?: PlanType;
+  onEdit?: () => void;
 }
 
 // Helper to process inline styles like bold
@@ -113,7 +114,7 @@ const MarkdownRenderer: React.FC<{ content: string }> = ({ content }) => {
   return <div>{elements}</div>;
 };
 
-export const ResultStep: React.FC<ResultStepProps> = ({ businessPlan, onRestart, isReadOnly = false, initialShareId, userPlan }) => {
+export const ResultStep: React.FC<ResultStepProps> = ({ businessPlan, onRestart, isReadOnly = false, initialShareId, userPlan, onEdit }) => {
   const [copied, setCopied] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
@@ -297,6 +298,18 @@ export const ResultStep: React.FC<ResultStepProps> = ({ businessPlan, onRestart,
                   )}
                   {shareCopied ? 'Link Copied!' : shareUrl ? 'Copy Share Link' : 'Create Share Link'}
               </button>
+
+              {!isReadOnly && onEdit && (
+                  <button
+                      onClick={onEdit}
+                      className="inline-flex items-center rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-white shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition"
+                  >
+                        <svg className="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      Edit Inputs
+                  </button>
+              )}
 
               <button
                   onClick={onRestart}

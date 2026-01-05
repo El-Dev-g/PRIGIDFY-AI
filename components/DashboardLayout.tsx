@@ -5,22 +5,26 @@ import { DashboardNavbar } from './DashboardNavbar';
 import { Planner } from './Planner';
 import { HistoryView } from './HistoryView';
 import { ProfileSettings } from './ProfileSettings';
+import { BillingPage } from './BillingPage';
 import type { UserProfile } from '../types';
 
 interface DashboardLayoutProps {
   onLogout: () => void;
   user: UserProfile;
+  onSelectPlan: (planId: string) => void;
+  onPlanUpdate: (user: UserProfile) => void;
 }
 
-export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout, user }) => {
+export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout, user, onSelectPlan, onPlanUpdate }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [currentView, setCurrentView] = useState<'new-plan' | 'history' | 'profile'>('new-plan');
+  const [currentView, setCurrentView] = useState<'new-plan' | 'history' | 'profile' | 'billing'>('new-plan');
 
   const getTitle = () => {
     switch(currentView) {
         case 'new-plan': return 'New Business Plan';
         case 'history': return 'History';
         case 'profile': return 'Account Settings';
+        case 'billing': return 'Billing & Plans';
         default: return 'Dashboard';
     }
   };
@@ -47,6 +51,13 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout, user
             {currentView === 'new-plan' && <Planner user={user} />}
             {currentView === 'history' && <HistoryView user={user} />}
             {currentView === 'profile' && <ProfileSettings user={user} />}
+            {currentView === 'billing' && (
+                <BillingPage 
+                    user={user} 
+                    onSelectPlan={onSelectPlan} 
+                    onPlanUpdate={onPlanUpdate}
+                />
+            )}
         </main>
       </div>
     </div>
