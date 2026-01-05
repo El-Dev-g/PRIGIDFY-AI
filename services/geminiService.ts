@@ -2,14 +2,16 @@
 import { GoogleGenAI } from "@google/genai";
 import type { FormData, PlanType } from '../types';
 
-if (!process.env.API_KEY) {
-  throw new Error("API_KEY environment variable not set");
-}
-
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const getAiClient = () => {
+  if (!process.env.API_KEY) {
+    throw new Error("API_KEY environment variable not set");
+  }
+  return new GoogleGenAI({ apiKey: process.env.API_KEY });
+};
 
 const generateImage = async (prompt: string): Promise<string | null> => {
   try {
+    const ai = getAiClient();
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: {
@@ -45,6 +47,7 @@ export const generateNameSuggestions = async (keyword: string): Promise<string[]
   `;
 
   try {
+    const ai = getAiClient();
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
@@ -157,6 +160,8 @@ export const generateBusinessPlan = async (formData: FormData, planType: PlanTyp
   `;
 
   // Start all generations in parallel
+  const ai = getAiClient();
+  
   const textPromise = ai.models.generateContent({
     model: textModel,
     contents: textPrompt,
