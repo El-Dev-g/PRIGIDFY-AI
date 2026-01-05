@@ -157,6 +157,11 @@ export const generateBusinessPlan = async (formData: FormData, planType: PlanTyp
       - **### 8.3 Break-even Analysis**
     
     - **{{FINANCIAL_CHART_IMAGE}}**
+
+    - **## 9. Conclusion**
+      - **### 9.1 Implementation Roadmap**
+      - **### 9.2 Summary of Opportunity**
+      - **### 9.3 Closing Statement**
   `;
 
   // Start all generations in parallel
