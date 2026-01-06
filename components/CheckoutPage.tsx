@@ -4,7 +4,7 @@ import type { PlanType } from '../types';
 
 interface CheckoutPageProps {
   planId: string;
-  onComplete: () => void;
+  onComplete: (details?: { name: string; email: string }) => void;
   onCancel: () => void;
 }
 
@@ -12,6 +12,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
   const [isLoading, setIsLoading] = useState(false);
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerName, setCustomerName] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   // Debugging environment variables
   useEffect(() => {
@@ -21,8 +22,6 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
     
     console.log("Paystack Config Check:", {
         hasKey: !!key && key.length > 0,
-        keyPrefix: key ? key.substring(0, 7) : 'none',
-        hasPlanCode: !!plan && plan.length > 0,
         planCode: plan || 'PLN_qhqyagpuem14vf4 (Default)'
     });
   }, []);
@@ -40,89 +39,80 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
       }
       
       if (id.includes('pro')) return { name: 'Pro Plan', price: '$29.00', currency: 'USD', amount: 2900, planCode: cleanPlanCode };
-      return { name: 'Unknown Plan', price: '$0.00', currency: 'USD', amount: 0, planCode: '' };
+      // Fallback for enterprise or unknown
+      return { name: 'Enterprise Plan', price: '$99.00', currency: 'USD', amount: 9900, planCode: '' };
   };
 
   const plan = getPlanDetails(planId);
 
   const handlePayment = (provider: 'paystack' | 'flutterwave') => {
+    setError(null);
     if (!customerEmail || !customerName) {
-        alert("Please enter your name and email to proceed.");
+        setError("Please enter your name and email to proceed.");
         return;
     }
 
     setIsLoading(true);
 
     if (provider === 'paystack') {
-        // @ts-ignore
-        if (typeof window.PaystackPop !== 'undefined') {
-            const envKey = process.env.VITE_PAYSTACK_PUBLIC_KEY || process.env.PAYSTACK_PUBLIC_KEY;
-            
-            // If no key is found in env, we fallback to a placeholder, 
-            // BUT we must ensure we don't try to use a real plan code with a fake key.
-            const paystackKey = envKey || 'pk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'; 
-            
-            const paystackConfig: any = {
-                key: paystackKey,
-                email: customerEmail,
-                amount: plan.amount, // Amount in lowest currency unit (cents).
-                currency: plan.currency, 
-                ref: '' + Math.floor((Math.random() * 1000000000) + 1), // Generate a unique reference number
-                metadata: {
-                    custom_fields: [
-                        {
-                            display_name: "Customer Name",
-                            variable_name: "customer_name",
-                            value: customerName
-                        }
-                    ]
-                },
-                callback: function(response: any) {
-                    console.log('Paystack success:', response);
-                    onComplete();
-                    setIsLoading(false);
-                },
-                onClose: function() {
-                    setIsLoading(false);
-                }
-            };
-
-            // Only add 'plan' to config if:
-            // 1. It is explicitly defined in env OR we have a hardcoded fallback
-            // 2. It is not empty
-            // 3. We are NOT using the placeholder/dummy key (which definitely won't have the plan)
-            const isPlaceholderKey = paystackKey === 'pk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
-            
-            if (plan.planCode && plan.planCode !== '' && !isPlaceholderKey) {
-                paystackConfig.plan = plan.planCode;
-            } else {
-                if (isPlaceholderKey && plan.planCode) {
-                    console.warn("Using placeholder Paystack key; ignoring Plan Code to prevent errors.");
-                } else if (!plan.planCode) {
-                    console.warn("No Paystack Plan Code found. Proceeding with one-time payment.");
-                }
-            }
-            
-            // @ts-ignore
-            const handler = window.PaystackPop.setup(paystackConfig);
-            handler.openIframe();
+        const publicKey = process.env.VITE_PAYSTACK_PUBLIC_KEY || process.env.PAYSTACK_PUBLIC_KEY;
+        
+        if (!publicKey) {
+            setError("Configuration Error: Paystack Public Key is missing.");
+            setIsLoading(false);
             return;
         }
+
+        // @ts-ignore
+        if (!window.PaystackPop) {
+            setError("Paystack library not loaded. Please refresh the page.");
+            setIsLoading(false);
+            return;
+        }
+
+        // @ts-ignore
+        const handler = window.PaystackPop.setup({
+            key: publicKey,
+            email: customerEmail,
+            // If plan code is provided, Paystack uses the amount defined in the dashboard for that plan.
+            // We pass the amount as a fallback or for one-time payments if plan is empty.
+            amount: plan.amount * 100, // Amount in kobo/cents
+            plan: plan.planCode,
+            currency: 'NGN', // Default to NGN or USD based on your Paystack settings
+            
+            ref: '' + Math.floor((Math.random() * 1000000000) + 1), 
+            metadata: {
+                custom_fields: [
+                    {
+                        display_name: "Customer Name",
+                        variable_name: "customer_name",
+                        value: customerName
+                    }
+                ]
+            },
+            callback: function(response: any) {
+                console.log("Payment complete", response);
+                // Success! Proceed to signup/upgrade
+                onComplete({ name: customerName, email: customerEmail });
+            },
+            onClose: function() {
+                setIsLoading(false);
+            }
+        });
+
+        handler.openIframe();
+        return;
     }
 
-    // Simulation of a Gateway Popup (Fallback if script fails or just for Demo)
+    // Fallback/Mock for Flutterwave or Demo
     setTimeout(() => {
-        const isRecurring = provider === 'paystack' && plan.planCode;
-        const msg = isRecurring 
-            ? `[Mock Paystack Popup]\n\nProcessing RECURRING subscription for ${plan.name} (${plan.price}/mo)...\n\nPlan Code: ${plan.planCode}\n\nClick OK to simulate Success, Cancel to simulate Failure.`
-            : `[Mock ${provider === 'paystack' ? 'Paystack' : 'Flutterwave'} Popup]\n\nProcessing ONE-TIME payment for ${plan.name}...\n\nClick OK to simulate Success, Cancel to simulate Failure.`;
-
+        const msg = `[Mock Flutterwave Popup]\n\nProcessing payment for ${plan.name}...\n\nClick OK to simulate Success, Cancel to simulate Failure.`;
         const success = window.confirm(msg);
         
         setIsLoading(false);
         
         if (success) {
-            onComplete();
+            onComplete({ name: customerName, email: customerEmail });
         }
     }, 1500);
   };
@@ -143,6 +133,12 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
             <p className="text-xl font-bold text-indigo-600 dark:text-indigo-400">{plan.price}</p>
          </div>
 
+         {error && (
+            <div className="mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-200 px-4 py-3 rounded-md text-sm">
+                {error}
+            </div>
+         )}
+
          <div className="space-y-6">
             <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Full Name</label>
@@ -151,7 +147,8 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
                         type="text" 
                         value={customerName}
                         onChange={(e) => setCustomerName(e.target.value)}
-                        className="block w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"
+                        disabled={isLoading}
+                        className="block w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border disabled:opacity-50"
                         placeholder="John Doe" 
                     />
                 </div>
@@ -164,7 +161,8 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
                         type="email" 
                         value={customerEmail}
                         onChange={(e) => setCustomerEmail(e.target.value)}
-                        className="block w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"
+                        disabled={isLoading}
+                        className="block w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border disabled:opacity-50"
                         placeholder="john@example.com" 
                     />
                 </div>
@@ -177,11 +175,11 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
                     className="w-full flex items-center justify-center gap-2 rounded-md border border-transparent bg-[#0ba4db] py-3 px-4 text-sm font-bold text-white shadow-sm hover:bg-[#0a93c4] focus:outline-none focus:ring-2 focus:ring-[#0ba4db] focus:ring-offset-2 disabled:opacity-50 transition-colors"
                 >
                     {isLoading ? (
-                         <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                     ) : (
                         <>
-                         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M4 4h16a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2zm0 4v10h16V8H4z" /></svg>
-                         Subscribe with Paystack
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M4 4h16a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2zm0 4v10h16V8H4z" /></svg>
+                        Subscribe with Paystack
                         </>
                     )}
                 </button>

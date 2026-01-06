@@ -1,19 +1,26 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { db } from '../services/db';
 
 interface SignUpPageProps {
   onSignup: (user: any) => void;
   onNavigateToLogin: () => void;
+  initialName?: string;
+  initialEmail?: string;
 }
 
-export const SignUpPage: React.FC<SignUpPageProps> = ({ onSignup, onNavigateToLogin }) => {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+export const SignUpPage: React.FC<SignUpPageProps> = ({ onSignup, onNavigateToLogin, initialName = '', initialEmail = '' }) => {
+  const [name, setName] = useState(initialName);
+  const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialName) setName(initialName);
+    if (initialEmail) setEmail(initialEmail);
+  }, [initialName, initialEmail]);
 
   const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
@@ -37,8 +44,13 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onSignup, onNavigateToLo
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
         <h2 className="mt-10 text-center text-2xl font-bold leading-9 tracking-tight text-slate-900 dark:text-white">
-          Create your account
+          {initialEmail ? 'Finalize your account' : 'Create your account'}
         </h2>
+        {initialEmail && (
+            <p className="mt-2 text-center text-sm text-green-600 dark:text-green-400">
+                Payment successful! Please set a password to access your dashboard.
+            </p>
+        )}
       </div>
 
       <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-sm">
@@ -123,7 +135,7 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onSignup, onNavigateToLo
               disabled={isLoading}
               className="flex w-full justify-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-semibold leading-6 text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50"
             >
-              {isLoading ? 'Creating Account...' : 'Sign Up'}
+              {isLoading ? 'Creating Account...' : (initialEmail ? 'Complete Registration' : 'Sign Up')}
             </button>
           </div>
         </form>

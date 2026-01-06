@@ -53,6 +53,9 @@ export default function App() {
   const [sharedPlanContent, setSharedPlanContent] = useState<string>('');
   const [currentShareId, setCurrentShareId] = useState<string | null>(null);
 
+  // Store details from checkout to pre-fill signup
+  const [pendingCheckoutData, setPendingCheckoutData] = useState<{name: string, email: string} | null>(null);
+
   // Initialize Auth & View Persistence
   useEffect(() => {
     let mounted = true;
@@ -65,7 +68,7 @@ export default function App() {
             const validDashboardViews = ['planner', 'history', 'profile', 'billing'];
             const publicViews = [
               'pricing', 'about', 'blog', 'blog-post', 'careers', 
-              'help', 'api', 'privacy', 'terms', 'submit-testimonial'
+              'help', 'api', 'privacy', 'terms', 'submit-testimonial', 'checkout', 'signup', 'login'
             ];
             
             if (lastBlogPostId) setSelectedBlogPostId(lastBlogPostId);
@@ -106,7 +109,9 @@ export default function App() {
              const fullProfile = await db.auth.getSession();
              if (mounted && fullProfile) {
                  setUser(fullProfile);
-                 if (currentView === 'login' || currentView === 'signup') {
+                 // Don't auto-redirect if we are in the middle of a signup flow (pendingCheckoutData)
+                 // The handleSignup function will handle the redirection.
+                 if (currentView === 'login' && !pendingCheckoutData) {
                      setCurrentView('planner');
                  }
              }
@@ -122,7 +127,7 @@ export default function App() {
         mounted = false;
         subscription?.subscription.unsubscribe();
     };
-  }, []);
+  }, [pendingCheckoutData]);
 
   // Save current view state
   useEffect(() => {
@@ -158,6 +163,7 @@ export default function App() {
   const handleLogin = (loggedInUser: UserProfile) => {
     setUser(loggedInUser);
     
+    // If they were trying to buy a plan but logged in instead
     if (selectedPlanId && selectedPlanId !== 'tier-starter') {
         setCurrentView('checkout');
     } else {
@@ -165,12 +171,33 @@ export default function App() {
     }
   };
   
-  const handleSignup = (signedUpUser: UserProfile) => {
+  const handleSignup = async (signedUpUser: UserProfile) => {
     setUser(signedUpUser);
 
+    // If they came from checkout (Success Payment -> Signup), upgrade them now
     if (selectedPlanId && selectedPlanId !== 'tier-starter') {
-        setCurrentView('checkout');
+        const planMap: Record<string, PlanType> = {
+            'tier-pro': 'pro',
+            'tier-enterprise': 'enterprise'
+        };
+        const newPlan = planMap[selectedPlanId] || 'starter';
+        
+        // Upgrade the newly created user
+        const updatedUser = await db.auth.updatePlan(signedUpUser.id, newPlan);
+        if (updatedUser) setUser(updatedUser);
+        
+        // Clear pending data
+        setSelectedPlanId(null);
+        setPendingCheckoutData(null);
+        
+        // Go to dashboard
+        setCurrentView('planner');
+    } else if (selectedPlanId && selectedPlanId !== 'tier-starter') {
+         // Fallback: If they somehow signed up without payment pending but had a plan selected
+         // Redirect to checkout to pay
+         setCurrentView('checkout');
     } else {
+        // Starter/Free plan signup
         setCurrentView('planner');
     }
   };
@@ -180,6 +207,7 @@ export default function App() {
     setUser(null);
     setCurrentView('landing');
     setSelectedPlanId(null);
+    setPendingCheckoutData(null);
     sessionStorage.removeItem('jhaidify_last_view');
   };
 
@@ -191,14 +219,15 @@ export default function App() {
   const handleSelectPlan = (planId: string) => {
       setSelectedPlanId(planId);
       
-      if (!user) {
-          setCurrentView('signup');
-          return;
-      }
-      
       if (planId === 'tier-starter') {
-           setCurrentView('planner');
+          if (!user) {
+              setCurrentView('signup');
+          } else {
+              setCurrentView('planner');
+          }
       } else {
+          // For paid plans, go directly to checkout regardless of auth status
+          // We will handle account creation AFTER payment if they are guests
           setCurrentView('checkout');
       }
   };
@@ -207,19 +236,29 @@ export default function App() {
       setUser(updatedUser);
   };
 
-  const handleCheckoutComplete = async () => {
-      if (user && selectedPlanId) {
+  const handleCheckoutComplete = async (customerDetails?: {name: string, email: string}) => {
+      // Logic:
+      // 1. If user is logged in -> Upgrade Plan -> Go to Planner
+      // 2. If user is Guest -> Save Details -> Go to SignUp -> Create Account -> Upgrade Plan -> Go to Planner
+      
+      if (user) {
           const planMap: Record<string, PlanType> = {
               'tier-pro': 'pro',
               'tier-enterprise': 'enterprise'
           };
-          const newPlan = planMap[selectedPlanId] || 'starter';
+          const newPlan = planMap[selectedPlanId || ''] || 'starter';
           
           const updatedUser = await db.auth.updatePlan(user.id, newPlan);
           if (updatedUser) setUser(updatedUser);
           
           setSelectedPlanId(null);
           setCurrentView('planner');
+      } else {
+          // Guest User Flow
+          if (customerDetails) {
+              setPendingCheckoutData(customerDetails);
+          }
+          setCurrentView('signup');
       }
   };
 
@@ -259,13 +298,24 @@ export default function App() {
       case 'login':
         return <LoginPage onLogin={handleLogin} onNavigateToSignup={() => setCurrentView('pricing')} />;
       case 'signup':
-        return <SignUpPage onSignup={handleSignup} onNavigateToLogin={() => setCurrentView('login')} />;
+        return (
+            <SignUpPage 
+                onSignup={handleSignup} 
+                onNavigateToLogin={() => setCurrentView('login')} 
+                initialName={pendingCheckoutData?.name}
+                initialEmail={pendingCheckoutData?.email}
+            />
+        );
       case 'checkout':
         return selectedPlanId ? (
             <CheckoutPage 
                 planId={selectedPlanId} 
                 onComplete={handleCheckoutComplete} 
-                onCancel={() => setCurrentView('planner')} 
+                onCancel={() => {
+                    // If they cancel, go back to pricing. No account created.
+                    setSelectedPlanId(null);
+                    setCurrentView('pricing');
+                }} 
             /> 
         ) : <PricingPage onSelectPlan={handleSelectPlan} />;
       case 'about':
