@@ -193,7 +193,7 @@ export const Planner: React.FC<PlannerProps> = ({ user }) => {
     const stepData = STEPS[currentStep];
 
     if (stepData.id === '01') {
-      return <WelcomeStep onNext={handleNext} />;
+      return <WelcomeStep onNext={handleNext} userName={user.name} />;
     }
     
     // Plan Style Step (now index 7 in array, id 08)
