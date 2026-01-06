@@ -14,31 +14,17 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
   const [customerName, setCustomerName] = useState('');
   const [error, setError] = useState<string | null>(null);
 
+  // Hardcoded keys provided by user
+  const PAYSTACK_PUBLIC_KEY = 'pk_test_047ee3eed0b93ddc0bf33256dfaf8b377ddd1c3f';
+  const PAYSTACK_PLAN_CODE = 'PLN_qhqyagpuem14vf4';
+
   // Debugging environment variables
   useEffect(() => {
-    // Check both VITE_ and non-prefixed versions which are now polyfilled by vite.config.ts
-    const key = process.env.VITE_PAYSTACK_PUBLIC_KEY || process.env.PAYSTACK_PUBLIC_KEY;
-    const plan = process.env.VITE_PAYSTACK_PLAN_PRO || process.env.PAYSTACK_PLAN_PRO;
-    
-    console.log("Paystack Config Check:", {
-        hasKey: !!key && key.length > 0,
-        planCode: plan || 'PLN_qhqyagpuem14vf4 (Default)'
-    });
+    console.log("Paystack Config initialized with provided keys.");
   }, []);
 
   const getPlanDetails = (id: string) => {
-      // Try to get plan code from all possible env variations
-      const envPlanCode = process.env.VITE_PAYSTACK_PLAN_PRO || process.env.PAYSTACK_PLAN_PRO;
-      
-      // Clean the plan code (remove quotes, whitespace)
-      let cleanPlanCode = envPlanCode ? envPlanCode.replace(/['"]/g, '').trim() : '';
-
-      // Fallback to the specific plan code provided by the user if env is empty
-      if (!cleanPlanCode) {
-          cleanPlanCode = 'PLN_qhqyagpuem14vf4';
-      }
-      
-      if (id.includes('pro')) return { name: 'Pro Plan', price: '$29.00', currency: 'USD', amount: 2900, planCode: cleanPlanCode };
+      if (id.includes('pro')) return { name: 'Pro Plan', price: '$29.00', currency: 'USD', amount: 2900, planCode: PAYSTACK_PLAN_CODE };
       // Fallback for enterprise or unknown
       return { name: 'Enterprise Plan', price: '$99.00', currency: 'USD', amount: 9900, planCode: '' };
   };
@@ -55,7 +41,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
     setIsLoading(true);
 
     if (provider === 'paystack') {
-        const publicKey = process.env.VITE_PAYSTACK_PUBLIC_KEY || process.env.PAYSTACK_PUBLIC_KEY;
+        const publicKey = PAYSTACK_PUBLIC_KEY;
         
         if (!publicKey) {
             setError("Configuration Error: Paystack Public Key is missing.");
@@ -74,11 +60,9 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
         const handler = window.PaystackPop.setup({
             key: publicKey,
             email: customerEmail,
-            // If plan code is provided, Paystack uses the amount defined in the dashboard for that plan.
-            // We pass the amount as a fallback or for one-time payments if plan is empty.
             amount: plan.amount * 100, // Amount in kobo/cents
-            plan: plan.planCode,
-            currency: 'NGN', // Default to NGN or USD based on your Paystack settings
+            plan: plan.planCode, // Use the plan code
+            currency: 'NGN', // Default to NGN
             
             ref: '' + Math.floor((Math.random() * 1000000000) + 1), 
             metadata: {
