@@ -13,12 +13,12 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerName, setCustomerName] = useState('');
 
-  // Debugging environment variables (will be removed in production build optimization usually, but helpful here)
+  // Debugging environment variables
   useEffect(() => {
     const key = process.env.VITE_PAYSTACK_PUBLIC_KEY;
     const plan = process.env.VITE_PAYSTACK_PLAN_PRO;
     console.log("Paystack Config Check:", {
-        hasKey: !!key && key.length > 0 && key !== 'pk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+        hasKey: !!key && key.length > 0,
         keyPrefix: key ? key.substring(0, 7) : 'none',
         hasPlanCode: !!plan && plan.length > 0,
         planCode: plan
@@ -26,12 +26,13 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
   }, []);
 
   const getPlanDetails = (id: string) => {
-      // Use env var for plan code
+      // Use env var for plan code. 
+      // CRITICAL FIX: Do NOT use a hardcoded fallback like 'PLN_PRO_MONTHLY' if env is missing.
+      // Passing an invalid plan code causes Paystack to throw "Plan not found".
+      // If this is empty, we will process as a one-time payment instead.
       const envPlanCode = process.env.VITE_PAYSTACK_PLAN_PRO;
-      // Default placeholder if env var is missing or empty string
-      const proPlanCode = envPlanCode || 'PLN_PRO_MONTHLY';
-
-      if (id.includes('pro')) return { name: 'Pro Plan', price: '$29.00', currency: 'USD', amount: 2900, planCode: proPlanCode };
+      
+      if (id.includes('pro')) return { name: 'Pro Plan', price: '$29.00', currency: 'USD', amount: 2900, planCode: envPlanCode || '' };
       return { name: 'Unknown Plan', price: '$0.00', currency: 'USD', amount: 0, planCode: '' };
   };
 
@@ -49,18 +50,13 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
         // @ts-ignore
         if (typeof window.PaystackPop !== 'undefined') {
             const envKey = process.env.VITE_PAYSTACK_PUBLIC_KEY;
-            // Fallback to test key only if envKey is strictly empty
             const paystackKey = envKey || 'pk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'; 
             
-            // @ts-ignore
-            const handler = window.PaystackPop.setup({
+            const paystackConfig: any = {
                 key: paystackKey,
                 email: customerEmail,
                 amount: plan.amount, // Amount in lowest currency unit (cents).
                 currency: plan.currency, 
-                // Passing 'plan' is what enables Recurring billing on Paystack.
-                // You must create a Plan on Paystack dashboard and use that Code here.
-                plan: plan.planCode, 
                 ref: '' + Math.floor((Math.random() * 1000000000) + 1), // Generate a unique reference number
                 metadata: {
                     custom_fields: [
@@ -73,15 +69,24 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
                 },
                 callback: function(response: any) {
                     console.log('Paystack success:', response);
-                    // In production, verify the transaction reference on your backend
                     onComplete();
                     setIsLoading(false);
                 },
                 onClose: function() {
-                    // alert('Transaction was not completed, window closed.');
                     setIsLoading(false);
                 }
-            });
+            };
+
+            // Only add 'plan' to config if it is explicitly defined and not empty.
+            // If excluded, Paystack treats this as a one-time payment, avoiding "Plan not found" errors.
+            if (plan.planCode && plan.planCode.trim() !== '') {
+                paystackConfig.plan = plan.planCode;
+            } else {
+                console.warn("No Paystack Plan Code found. Proceeding with one-time payment.");
+            }
+            
+            // @ts-ignore
+            const handler = window.PaystackPop.setup(paystackConfig);
             handler.openIframe();
             return;
         }
@@ -89,10 +94,10 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
 
     // Simulation of a Gateway Popup (Fallback if script fails or just for Demo)
     setTimeout(() => {
-        const isRecurring = provider === 'paystack';
+        const isRecurring = provider === 'paystack' && plan.planCode;
         const msg = isRecurring 
             ? `[Mock Paystack Popup]\n\nProcessing RECURRING subscription for ${plan.name} (${plan.price}/mo)...\n\nPlan Code: ${plan.planCode}\n\nClick OK to simulate Success, Cancel to simulate Failure.`
-            : `[Mock Flutterwave Popup]\n\nProcessing payment for ${plan.name}...\n\nClick OK to simulate Success, Cancel to simulate Failure.`;
+            : `[Mock ${provider === 'paystack' ? 'Paystack' : 'Flutterwave'} Popup]\n\nProcessing ONE-TIME payment for ${plan.name}...\n\nClick OK to simulate Success, Cancel to simulate Failure.`;
 
         const success = window.confirm(msg);
         
