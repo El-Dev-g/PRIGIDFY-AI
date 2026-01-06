@@ -10,6 +10,8 @@ interface DashboardNavbarProps {
 }
 
 export const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ onToggleSidebar, title, onProfileClick, user }) => {
+  const isOfflineUser = user.id.startsWith('offline-');
+
   return (
     <header className="flex h-16 items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6">
       <div className="flex items-center gap-4">
@@ -26,6 +28,15 @@ export const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ onToggleSideba
       </div>
 
       <div className="flex items-center gap-4">
+        {isOfflineUser && (
+           <span className="hidden sm:inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-800 border border-yellow-200">
+              <svg className="-ml-0.5 mr-1.5 h-2 w-2 text-yellow-400" fill="currentColor" viewBox="0 0 8 8">
+                <circle cx="4" cy="4" r="3" />
+              </svg>
+              Demo Mode (Not Syncing)
+           </span>
+        )}
+        
         <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${
             user.plan === 'enterprise' 
             ? 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800'

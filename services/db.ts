@@ -1,12 +1,14 @@
 
-import { supabase } from './supabaseClient';
+import { supabase, isSupabaseConfigured } from './supabaseClient';
 import type { UserProfile, SavedPlan, PlanType } from '../types';
 
 const KEYS = {
-  DRAFT: 'jhaidify_draft'
+  DRAFT: 'jhaidify_draft',
+  USER_SESSION: 'jhaidify_session',
+  LOCAL_PLANS: 'jhaidify_local_plans',
+  LOCAL_SHARES: 'jhaidify_local_shares'
 };
 
-// Helper to map Supabase session/profile to UserProfile
 const mapUser = (sessionUser: any, profile: any): UserProfile => ({
   id: sessionUser.id,
   email: sessionUser.email!,
@@ -14,174 +16,272 @@ const mapUser = (sessionUser: any, profile: any): UserProfile => ({
   plan: (profile?.plan as PlanType) || 'starter'
 });
 
+// Mock user for offline mode
+const getMockUser = (): UserProfile | null => {
+  const stored = localStorage.getItem(KEYS.USER_SESSION);
+  return stored ? JSON.parse(stored) : null;
+};
+
+// Helper to check if a string is a valid UUID
+const isUUID = (str: string) => {
+  const regex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return regex.test(str);
+};
+
 export const db = {
   auth: {
     async getSession(): Promise<UserProfile | null> {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session?.user) return null;
+      if (!isSupabaseConfigured) return getMockUser();
 
-      // Fetch profile data (plan, name)
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .single();
+      try {
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) {
+             console.warn("Session check failed, using mock if available:", sessionError.message);
+             return getMockUser();
+        }
+        if (!session?.user) return null;
 
-      return mapUser(session.user, profile);
+        const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+            
+        if (profileError) {
+             // If table missing, we return basic user info so app doesn't crash
+             console.warn("Profile fetch failed:", profileError.message);
+             return mapUser(session.user, { name: session.user.user_metadata?.name });
+        }
+
+        return mapUser(session.user, profile);
+      } catch (e) {
+        return getMockUser();
+      }
     },
 
-    async login(email: string): Promise<UserProfile> {
-      // For this demo, we assume the user provides a password in a real form.
-      // Since the existing UI only asks for email in the first step or simplistic login,
-      // we will default to a standard password for the demo if you haven't built a password input yet,
-      // OR we assume the UI passes the password. 
-      // *Correction*: The LoginPage.tsx HAS a password field. We will use it.
-      
-      // Note: The UI calls this with just (email). We need to update LoginPage to pass password, 
-      // but to keep interface compatible without changing every component immediately:
-      // We will assume the UI has been updated or we throw an error if this was a real production app.
-      // However, to make the existing 'LoginPage' work which passes (email) but gathers (password) internally...
-      // Wait, the LoginPage component gathers password but `db.auth.login` signature in `App.tsx` and `LoginPage.tsx` 
-      // needs to align.
-      // The previous mock `login` only took email. We need to update the signature in `LoginPage` to pass both.
-      // For now, to adhere to strict "changes" request, I will modify this file to accept (email, password).
-      // If the UI calls it with one argument, this will fail. 
-      // *Actually*, I will rely on the user updating the UI to pass the password, 
-      // or strictly for this file, I will allow the interface change.
-      
-      // Since I can't change `LoginPage` signature in this file block, I will assume the prompt implies
-      // I can change the signature here and I should provide the UI update if needed.
-      // But looking at `LoginPage.tsx` provided in context:
-      // `const handleSubmit ... await onLogin(email);` 
-      // It ignores password! I need to update LoginPage.tsx as well.
-      
-      throw new Error("Please update Login Page to pass password"); 
+    async login(email: string) {
+        throw new Error("Use signInWithPassword"); 
     },
 
-    // Extended login function to be compatible with updated UI
     async signInWithPassword(email: string, password: string): Promise<UserProfile> {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      if (isSupabaseConfigured) {
+        try {
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email,
+                password,
+            });
+            
+            if (error) throw error;
 
-      if (error) throw error;
-      if (!data.user) throw new Error("No user found");
+            if (data.user) {
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', data.user.id)
+                    .single();
+                
+                return mapUser(data.user, profile);
+            }
+        } catch (e: any) {
+            // Only fallback to mock if connection error, not invalid auth
+            if (e.message !== "Invalid login credentials") {
+                 console.warn("Supabase Login failed, falling back to offline mode.");
+            } else {
+                throw e; 
+            }
+        }
+      }
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', data.user.id)
-        .single();
-
-      return mapUser(data.user, profile);
+      // Offline Mock Fallback
+      const mockUser: UserProfile = {
+          id: 'offline-user-' + email.replace(/[^a-zA-Z0-9]/g, ''),
+          email: email,
+          name: email.split('@')[0],
+          plan: 'starter'
+      };
+      localStorage.setItem(KEYS.USER_SESSION, JSON.stringify(mockUser));
+      return mockUser;
     },
 
     async signup(name: string, email: string, password: string): Promise<UserProfile> {
-      // 1. Sign up auth user
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { name } // Store metadata
-        }
-      });
+      if (isSupabaseConfigured) {
+         try {
+            const { data, error } = await supabase.auth.signUp({
+                email,
+                password,
+                options: { data: { name } }
+            });
 
-      if (error) throw error;
-      if (!data.user) throw new Error("Signup failed");
+            if (error) throw error;
 
-      // 2. Create profile entry (if not handled by Postgres Triggers)
-      // We do it client side here for simplicity of setup, but Triggers are better.
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert([
-          { id: data.user.id, name, email, plan: 'starter' }
-        ]);
+            if (data.user) {
+                await supabase.from('profiles').insert([
+                    { id: data.user.id, name, email, plan: 'starter' }
+                ]).catch(err => console.warn("Profile creation failed (check RLS/Tables):", err.message));
 
-      // If profile creation fails (e.g. trigger already made it), ignore duplicate error
-      if (profileError && profileError.code !== '23505') { 
-         console.error("Profile creation error", profileError);
+                return {
+                    id: data.user.id,
+                    email: data.user.email!,
+                    name,
+                    plan: 'starter'
+                };
+            }
+         } catch (e) {
+             console.warn("Signup failed, falling back to offline:", e);
+         }
       }
 
-      return {
-        id: data.user.id,
-        email: data.user.email!,
-        name,
-        plan: 'starter'
+      const mockUser: UserProfile = {
+          id: 'offline-user-' + email.replace(/[^a-zA-Z0-9]/g, ''),
+          email: email,
+          name: name,
+          plan: 'starter'
       };
+      localStorage.setItem(KEYS.USER_SESSION, JSON.stringify(mockUser));
+      return mockUser;
     },
 
     async updatePlan(userId: string, plan: 'starter' | 'pro' | 'enterprise') {
-      const { data, error } = await supabase
-        .from('profiles')
-        .update({ plan })
-        .eq('id', userId)
-        .select()
-        .single();
+      const fallback = () => {
+          const user = getMockUser();
+          if (user && user.id === userId) {
+              user.plan = plan;
+              localStorage.setItem(KEYS.USER_SESSION, JSON.stringify(user));
+              return user;
+          }
+          return null;
+      };
 
-      if (error) throw error;
-      
-      // Return updated user object structure
-      const { data: { user } } = await supabase.auth.getUser();
-      return user ? mapUser(user, data) : null;
+      if (!isSupabaseConfigured || !isUUID(userId)) return fallback();
+
+      try {
+          const { data, error } = await supabase
+            .from('profiles')
+            .update({ plan })
+            .eq('id', userId)
+            .select()
+            .single();
+            
+          if (error) throw error;
+          
+          const { data: { user } } = await supabase.auth.getUser();
+          return user ? mapUser(user, data) : null;
+      } catch (e) {
+          return fallback();
+      }
     },
 
     async logout() {
-      await supabase.auth.signOut();
-      localStorage.removeItem(KEYS.DRAFT); // Optional: clear draft on logout
+      if (isSupabaseConfigured) {
+          await supabase.auth.signOut().catch(() => {});
+      }
+      localStorage.removeItem(KEYS.USER_SESSION);
     }
   },
 
   plans: {
     async create(plan: SavedPlan) {
-      // Transform frontend model to DB model
-      const dbPlan = {
-        user_id: plan.userId,
-        title: plan.title,
-        style: plan.style,
-        content: plan.content,
-        form_data: plan.formData, // Supabase handles JSONB
-        created_at: new Date().toISOString()
+      const fallback = () => {
+          console.log("Saving plan to local storage (Offline)");
+          const plans = JSON.parse(localStorage.getItem(KEYS.LOCAL_PLANS) || '[]');
+          plans.push(plan);
+          localStorage.setItem(KEYS.LOCAL_PLANS, JSON.stringify(plans));
       };
 
-      const { error } = await supabase
-        .from('plans')
-        .insert([dbPlan]);
+      // If offline user or config missing, use fallback without error
+      if (!isSupabaseConfigured || !isUUID(plan.userId)) {
+          return fallback();
+      }
 
-      if (error) throw error;
+      try {
+          const dbPlan = {
+            id: plan.id,
+            user_id: plan.userId,
+            title: plan.title,
+            style: plan.style,
+            content: plan.content,
+            form_data: plan.formData,
+            created_at: new Date().toISOString()
+          };
+          
+          const { error } = await supabase.from('plans').insert([dbPlan]);
+          
+          if (error) {
+              console.error("Supabase Plan Insert Failed:", error);
+              // Check for table missing
+              if (error.code === '42P01') { 
+                  alert("Error: Database tables missing. Please run the setup SQL.");
+                  return fallback();
+              }
+              // Check for RLS policy violation
+              if (error.code === '42501') {
+                   alert("Error: Permission denied. Please check RLS policies.");
+                   return fallback();
+              }
+              throw error;
+          }
+      } catch (e) {
+          console.error("Critical error saving plan:", e);
+          // We intentionally throw here so the UI knows something went wrong if we expected it to work
+          throw e; 
+      }
     },
 
     async list(userId: string): Promise<SavedPlan[]> {
-      const { data, error } = await supabase
-        .from('plans')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
+      const fallback = () => {
+          const plans = JSON.parse(localStorage.getItem(KEYS.LOCAL_PLANS) || '[]');
+          return plans
+            .filter((p: any) => p.userId === userId)
+            .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      };
 
-      if (error) throw error;
+      if (!isSupabaseConfigured || !isUUID(userId)) return fallback();
 
-      return (data || []).map((p: any) => ({
-        id: p.id,
-        userId: p.user_id,
-        date: p.created_at,
-        title: p.title,
-        style: p.style,
-        content: p.content,
-        formData: p.form_data
-      }));
+      try {
+          const { data, error } = await supabase
+            .from('plans')
+            .select('*')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false });
+            
+          if (error) {
+               console.warn("Fetch plans error:", error.message);
+               return fallback();
+          }
+
+          if (!data) return [];
+
+          return data.map((p: any) => ({
+            id: p.id,
+            userId: p.user_id,
+            date: p.created_at,
+            title: p.title,
+            style: p.style,
+            content: p.content,
+            formData: p.form_data
+          }));
+      } catch (e) {
+          return fallback();
+      }
     },
 
     async delete(id: string) {
-      const { error } = await supabase
-        .from('plans')
-        .delete()
-        .eq('id', id);
+       const fallback = () => {
+          let plans = JSON.parse(localStorage.getItem(KEYS.LOCAL_PLANS) || '[]');
+          plans = plans.filter((p: any) => p.id !== id);
+          localStorage.setItem(KEYS.LOCAL_PLANS, JSON.stringify(plans));
+       };
 
-      if (error) throw error;
+       if (!isSupabaseConfigured) return fallback();
+
+       try {
+           const { error } = await supabase.from('plans').delete().eq('id', id);
+           if (error) throw error;
+       } catch (e) {
+           fallback();
+       }
     },
 
-    // Keep drafts in LocalStorage for performance/offline capability
     async saveDraft(userId: string, data: any) {
       localStorage.setItem(`${KEYS.DRAFT}_${userId}`, JSON.stringify(data));
     },
@@ -194,22 +294,41 @@ export const db = {
 
   shares: {
     async create(id: string, content: string) {
-      const { error } = await supabase
-        .from('shares')
-        .insert([{ id, content }]); // Ensure your table allows manual ID insertion or use UUID
-      
-      if (error) throw error;
+       const fallback = () => {
+          const shares = JSON.parse(localStorage.getItem(KEYS.LOCAL_SHARES) || '{}');
+          shares[id] = content;
+          localStorage.setItem(KEYS.LOCAL_SHARES, JSON.stringify(shares));
+       };
+
+       if (!isSupabaseConfigured) return fallback();
+
+       try {
+           const { error } = await supabase.from('shares').insert([{ id, content }]);
+           if (error) return fallback();
+       } catch (e) {
+           fallback();
+       }
     },
 
     async get(id: string): Promise<string | null> {
-      const { data, error } = await supabase
-        .from('shares')
-        .select('content')
-        .eq('id', id)
-        .single();
+       const fallback = () => {
+          const shares = JSON.parse(localStorage.getItem(KEYS.LOCAL_SHARES) || '{}');
+          return shares[id] || null;
+       };
 
-      if (error) return null;
-      return data?.content || null;
+       if (!isSupabaseConfigured) return fallback();
+
+       try {
+           const { data, error } = await supabase
+            .from('shares')
+            .select('content')
+            .eq('id', id)
+            .single();
+           if (error) return fallback();
+           return data?.content || null;
+       } catch (e) {
+           return fallback();
+       }
     }
   }
 };

@@ -1,16 +1,23 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
+const envUrl = process.env.VITE_SUPABASE_URL;
+const envKey = process.env.VITE_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn("Supabase credentials missing. Ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set.");
+// Robust check for valid configuration
+export const isSupabaseConfigured = 
+  !!envUrl && 
+  !!envKey && 
+  envUrl !== 'undefined' && 
+  envKey !== 'undefined' &&
+  envUrl.startsWith('http');
+
+if (!isSupabaseConfigured) {
+  console.warn("Supabase Config Missing. App defaulting to Offline Mode.");
+  console.log("Debug URL:", envUrl);
 }
 
-// Fallback to placeholder values to prevent "supabaseUrl is required" crash on initialization.
-// The app will load, but authentication/database calls will fail until valid keys are provided.
-const url = supabaseUrl || 'https://placeholder.supabase.co';
-const key = supabaseAnonKey || 'placeholder';
+const url = isSupabaseConfigured ? envUrl : 'https://placeholder.supabase.co';
+const key = isSupabaseConfigured ? envKey : 'placeholder';
 
 export const supabase = createClient(url, key);
