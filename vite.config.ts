@@ -8,23 +8,23 @@ export default defineConfig(({ mode }) => {
   // @ts-ignore
   const env = loadEnv(mode, process.cwd(), '');
 
-  // Use environment variables or default to empty strings.
-  // Removing hardcoded keys to ensure isSupabaseConfigured becomes false if no keys are provided by the user.
-  // This forces the app into "Offline Mode" which is more reliable for immediate testing.
-  const supabaseUrl = env.VITE_SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL || '';
-  const supabaseKey = env.VITE_SUPABASE_ANON_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-  
-  // API Key for Gemini
-  const apiKey = env.API_KEY || process.env.API_KEY;
+  // Priorities:
+  // 1. process.env (Vercel System Env / CI)
+  // 2. env object (Loaded from .env files by Vite)
+  // Default to empty string to prevent build errors or undefined replacements
 
-  // Paystack Keys
-  const paystackPublicKey = env.VITE_PAYSTACK_PUBLIC_KEY || '';
-  const paystackPlanPro = env.VITE_PAYSTACK_PLAN_PRO || '';
+  const apiKey = process.env.API_KEY || env.API_KEY || '';
+
+  const supabaseUrl = process.env.VITE_SUPABASE_URL || env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+  
+  const paystackPublicKey = process.env.VITE_PAYSTACK_PUBLIC_KEY || env.VITE_PAYSTACK_PUBLIC_KEY || '';
+  const paystackPlanPro = process.env.VITE_PAYSTACK_PLAN_PRO || env.VITE_PAYSTACK_PLAN_PRO || '';
 
   return {
     plugins: [react()],
     define: {
-      // Expose API keys to the client-side code
+      // Expose API keys to the client-side code via process.env polyfill
       'process.env.API_KEY': JSON.stringify(apiKey),
       'process.env.VITE_SUPABASE_URL': JSON.stringify(supabaseUrl),
       'process.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(supabaseKey),
