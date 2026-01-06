@@ -165,18 +165,19 @@ export const generateBusinessPlan = async (formData: FormData, planType: PlanTyp
   `;
 
   // Start all generations in parallel
-  const ai = getAiClient();
-  
-  const textPromise = ai.models.generateContent({
-    model: textModel,
-    contents: textPrompt,
-  });
-
-  const conceptPrompt = `A high quality, professional, cinematic concept photo representing this business idea: ${formData.businessIdea} (Company Name: ${formData.businessName}). The image should visually communicate the core value proposition.`;
-  const orgChartPrompt = `A clean, professional corporate organizational chart diagram structure for a ${formData.businessIdea} business named ${formData.businessName}. Infographic style, white background, minimalist design, showing hierarchy.`;
-  const financialPrompt = `A professional business bar chart diagram showing projected positive revenue growth over 3 years. Clean 3D design, white background, blue and green colors, corporate style, upward trend.`;
-
+  // Catch individual errors for text generation to provide better feedback
   try {
+    const ai = getAiClient();
+    
+    const textPromise = ai.models.generateContent({
+      model: textModel,
+      contents: textPrompt,
+    });
+
+    const conceptPrompt = `A high quality, professional, cinematic concept photo representing this business idea: ${formData.businessIdea} (Company Name: ${formData.businessName}). The image should visually communicate the core value proposition.`;
+    const orgChartPrompt = `A clean, professional corporate organizational chart diagram structure for a ${formData.businessIdea} business named ${formData.businessName}. Infographic style, white background, minimalist design, showing hierarchy.`;
+    const financialPrompt = `A professional business bar chart diagram showing projected positive revenue growth over 3 years. Clean 3D design, white background, blue and green colors, corporate style, upward trend.`;
+
     const [textResponse, conceptImage, orgImage, financialImage] = await Promise.all([
       textPromise,
       generateImage(conceptPrompt),
@@ -207,8 +208,20 @@ export const generateBusinessPlan = async (formData: FormData, planType: PlanTyp
 
     return planText;
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error generating business plan:", error);
-    throw new Error("Failed to generate business plan. Please check your API key and try again.");
+    
+    let errorMessage = "Failed to generate business plan.";
+    if (error.message) {
+        if (error.message.includes("API_KEY")) {
+             errorMessage = "API Key is missing. Please check your configuration.";
+        } else if (error.message.includes("429")) {
+             errorMessage = "API Quota exceeded. Please try again later.";
+        } else {
+             errorMessage = `Generation failed: ${error.message}`;
+        }
+    }
+    
+    throw new Error(errorMessage);
   }
 };

@@ -3,7 +3,7 @@ import React from 'react';
 
 interface StepWrapperProps {
   children: React.ReactNode;
-  title?: string; // Optional now, as input step handles its own title
+  title?: string;
   description?: string;
 }
 
