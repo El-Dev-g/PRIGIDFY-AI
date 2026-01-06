@@ -11,6 +11,21 @@ interface BillingPageProps {
 
 export const BillingPage: React.FC<BillingPageProps> = ({ user, onSelectPlan, onPlanUpdate }) => {
   const [loadingTier, setLoadingTier] = useState<string | null>(null);
+  const [isEditingPayment, setIsEditingPayment] = useState(false);
+  const [isSavingPayment, setIsSavingPayment] = useState(false);
+
+  // Mock Payment State
+  const [paymentMethod, setPaymentMethod] = useState<{brand: string, last4: string, expMonth: string, expYear: string} | null>(
+      user.plan !== 'starter' 
+      ? { brand: 'Visa', last4: '4242', expMonth: '12', expYear: '25' }
+      : null
+  );
+
+  const [editForm, setEditForm] = useState({
+      cardNumber: '',
+      expiry: '',
+      cvc: ''
+  });
 
   const tiers = [
     {
@@ -40,16 +55,14 @@ export const BillingPage: React.FC<BillingPageProps> = ({ user, onSelectPlan, on
   const planOrder = ['starter', 'pro'];
 
   const handleAction = async (tier: typeof tiers[0]) => {
-      const currentPlanIndex = planOrder.indexOf(user.plan === 'enterprise' ? 'pro' : user.plan); // Fallback if user is already enterprise
+      const currentPlanIndex = planOrder.indexOf(user.plan === 'enterprise' ? 'pro' : user.plan);
       const targetPlanIndex = planOrder.indexOf(tier.value);
 
       if (currentPlanIndex === targetPlanIndex) return;
 
       if (targetPlanIndex > currentPlanIndex) {
-          // Upgrade -> Trigger parent handler which likely goes to checkout
           onSelectPlan(tier.id);
       } else {
-          // Downgrade -> Handle immediately
           if (window.confirm(`Are you sure you want to downgrade to ${tier.name}? You will lose access to premium features at the end of your billing cycle.`)) {
               setLoadingTier(tier.id);
               try {
@@ -65,6 +78,39 @@ export const BillingPage: React.FC<BillingPageProps> = ({ user, onSelectPlan, on
               }
           }
       }
+  };
+
+  const handleEditClick = () => {
+      setEditForm({
+          cardNumber: paymentMethod ? `**** **** **** ${paymentMethod.last4}` : '',
+          expiry: paymentMethod ? `${paymentMethod.expMonth}/${paymentMethod.expYear}` : '',
+          cvc: '***'
+      });
+      setIsEditingPayment(true);
+  };
+
+  const handleSavePayment = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setIsSavingPayment(true);
+      
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Basic extraction of mock data
+      const last4 = editForm.cardNumber.replace(/[^0-9]/g, '').slice(-4) || '8888';
+      const expiryParts = editForm.expiry.split('/');
+      const expMonth = expiryParts[0] || '12';
+      const expYear = expiryParts[1] || '28';
+      
+      setPaymentMethod({
+          brand: 'Visa', // We'll just default to Visa for this mock
+          last4: last4,
+          expMonth: expMonth,
+          expYear: expYear
+      });
+      
+      setIsSavingPayment(false);
+      setIsEditingPayment(false);
   };
 
   return (
@@ -140,28 +186,126 @@ export const BillingPage: React.FC<BillingPageProps> = ({ user, onSelectPlan, on
         </div>
         
         <div className="mt-12 bg-white dark:bg-slate-800 shadow rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
-             <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+             <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
                  <h3 className="text-lg font-medium leading-6 text-slate-900 dark:text-white">Payment Method</h3>
              </div>
              <div className="p-6">
-                 {user.plan === 'starter' ? (
-                     <p className="text-sm text-slate-500 dark:text-slate-400">No payment method on file for free plan.</p>
-                 ) : (
-                     <div className="flex items-center justify-between">
-                         <div className="flex items-center gap-4">
-                             <div className="bg-slate-100 dark:bg-slate-700 p-2 rounded">
-                                 <svg className="h-6 w-6 text-slate-600 dark:text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                                 </svg>
+                {isEditingPayment ? (
+                    <form onSubmit={handleSavePayment} className="animate-fade-in max-w-2xl">
+                        <div className="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
+                            <div className="sm:col-span-4">
+                                <label htmlFor="card-number" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Card number</label>
+                                <div className="mt-1 relative">
+                                    <input
+                                        type="text"
+                                        name="card-number"
+                                        id="card-number"
+                                        autoComplete="cc-number"
+                                        value={editForm.cardNumber}
+                                        onChange={(e) => setEditForm({...editForm, cardNumber: e.target.value})}
+                                        className="block w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border pl-10"
+                                        placeholder="0000 0000 0000 0000"
+                                    />
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                                        </svg>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="sm:col-span-2">
+                                <label htmlFor="expiration-date" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Expires (MM/YY)</label>
+                                <div className="mt-1">
+                                    <input
+                                        type="text"
+                                        name="expiration-date"
+                                        id="expiration-date"
+                                        autoComplete="cc-exp"
+                                        value={editForm.expiry}
+                                        onChange={(e) => setEditForm({...editForm, expiry: e.target.value})}
+                                        className="block w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"
+                                        placeholder="MM/YY"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="sm:col-span-2">
+                                <label htmlFor="cvc" className="block text-sm font-medium text-slate-700 dark:text-slate-300">CVC</label>
+                                <div className="mt-1">
+                                    <input
+                                        type="text"
+                                        name="cvc"
+                                        id="cvc"
+                                        autoComplete="csc"
+                                        value={editForm.cvc}
+                                        onChange={(e) => setEditForm({...editForm, cvc: e.target.value})}
+                                        className="block w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"
+                                        placeholder="***"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="mt-6 flex gap-3">
+                            <button
+                                type="submit"
+                                disabled={isSavingPayment}
+                                className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50 flex items-center gap-2"
+                            >
+                                {isSavingPayment && (
+                                     <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                )}
+                                {isSavingPayment ? 'Saving...' : 'Save Card'}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setIsEditingPayment(false)}
+                                className="rounded-md bg-white dark:bg-slate-700 px-3 py-2 text-sm font-semibold text-slate-900 dark:text-white shadow-sm ring-1 ring-inset ring-slate-300 dark:ring-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+                ) : (
+                    <>
+                        {!paymentMethod ? (
+                             <div className="flex items-center justify-between">
+                                <p className="text-sm text-slate-500 dark:text-slate-400">No payment method on file.</p>
+                                <button 
+                                    onClick={handleEditClick} 
+                                    className="text-sm text-indigo-600 hover:text-indigo-500 font-medium"
+                                >
+                                    Add Payment Method
+                                </button>
                              </div>
-                             <div>
-                                 <p className="text-sm font-medium text-slate-900 dark:text-white">Visa ending in 4242</p>
-                                 <p className="text-xs text-slate-500 dark:text-slate-400">Expires 12/25</p>
+                        ) : (
+                             <div className="flex items-center justify-between">
+                                 <div className="flex items-center gap-4">
+                                     <div className="bg-slate-100 dark:bg-slate-700 p-2 rounded">
+                                         <svg className="h-6 w-6 text-slate-600 dark:text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                                         </svg>
+                                     </div>
+                                     <div>
+                                         <p className="text-sm font-medium text-slate-900 dark:text-white">
+                                            {paymentMethod.brand} ending in {paymentMethod.last4}
+                                         </p>
+                                         <p className="text-xs text-slate-500 dark:text-slate-400">
+                                            Expires {paymentMethod.expMonth}/{paymentMethod.expYear}
+                                         </p>
+                                     </div>
+                                 </div>
+                                 <button 
+                                    onClick={handleEditClick} 
+                                    className="text-sm text-indigo-600 hover:text-indigo-500 font-medium"
+                                 >
+                                     Edit
+                                 </button>
                              </div>
-                         </div>
-                         <button className="text-sm text-indigo-600 hover:text-indigo-500 font-medium">Edit</button>
-                     </div>
-                 )}
+                        )}
+                    </>
+                )}
              </div>
         </div>
     </div>
