@@ -17,6 +17,10 @@ export default defineConfig(({ mode }) => {
   // API Key for Gemini
   const apiKey = env.API_KEY || process.env.API_KEY;
 
+  // Paystack Keys
+  const paystackPublicKey = env.VITE_PAYSTACK_PUBLIC_KEY || '';
+  const paystackPlanPro = env.VITE_PAYSTACK_PLAN_PRO || '';
+
   return {
     plugins: [react()],
     define: {
@@ -24,6 +28,8 @@ export default defineConfig(({ mode }) => {
       'process.env.API_KEY': JSON.stringify(apiKey),
       'process.env.VITE_SUPABASE_URL': JSON.stringify(supabaseUrl),
       'process.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(supabaseKey),
+      'process.env.VITE_PAYSTACK_PUBLIC_KEY': JSON.stringify(paystackPublicKey),
+      'process.env.VITE_PAYSTACK_PLAN_PRO': JSON.stringify(paystackPlanPro),
     },
   };
 });

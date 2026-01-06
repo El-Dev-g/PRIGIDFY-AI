@@ -274,7 +274,12 @@ export default function App() {
         return <BlogPage onNavigateToPost={handleNavigateToPost} />;
       case 'blog-post':
         return selectedBlogPostId ? (
-            <BlogPostPage postId={selectedBlogPostId} onBack={() => setCurrentView('blog')} />
+            <BlogPostPage 
+                postId={selectedBlogPostId} 
+                onBack={() => setCurrentView('blog')} 
+                onNavigateToPost={handleNavigateToPost}
+                onNavigate={setCurrentView}
+            />
         ) : (
             <BlogPage onNavigateToPost={handleNavigateToPost} />
         );

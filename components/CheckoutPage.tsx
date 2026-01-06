@@ -14,9 +14,11 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
   const [customerName, setCustomerName] = useState('');
 
   const getPlanDetails = (id: string) => {
-      if (id.includes('pro')) return { name: 'Pro Plan', price: '$29.00', currency: 'USD' };
-      // Enterprise removed from UI, keeping generic fallback
-      return { name: 'Unknown Plan', price: '$0.00', currency: 'USD' };
+      // Use env var for plan code, default to a placeholder if not set
+      const proPlanCode = process.env.VITE_PAYSTACK_PLAN_PRO || 'PLN_PRO_MONTHLY';
+
+      if (id.includes('pro')) return { name: 'Pro Plan', price: '$29.00', currency: 'USD', amount: 2900, planCode: proPlanCode };
+      return { name: 'Unknown Plan', price: '$0.00', currency: 'USD', amount: 0, planCode: '' };
   };
 
   const plan = getPlanDetails(planId);
@@ -29,23 +31,55 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
 
     setIsLoading(true);
 
-    // -------------------------------------------------------------------------
-    // INTEGRATION NOTE:
-    // This is where you would initialize the Paystack or Flutterwave Popup.
-    //
-    // Example for Paystack:
-    // const paystack = new PaystackPop();
-    // paystack.newTransaction({
-    //    key: 'pk_live_...',
-    //    email: customerEmail,
-    //    amount: plan.price * 100,
-    //    onSuccess: (transaction) => { onComplete(); }
-    // });
-    // -------------------------------------------------------------------------
+    if (provider === 'paystack') {
+        // @ts-ignore
+        if (typeof window.PaystackPop !== 'undefined') {
+            // Use env var for public key
+            const paystackKey = process.env.VITE_PAYSTACK_PUBLIC_KEY || 'pk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'; 
+            
+            // @ts-ignore
+            const handler = window.PaystackPop.setup({
+                key: paystackKey,
+                email: customerEmail,
+                amount: plan.amount, // Amount in lowest currency unit (cents).
+                currency: plan.currency, 
+                // Passing 'plan' is what enables Recurring billing on Paystack.
+                // You must create a Plan on Paystack dashboard and use that Code here.
+                plan: plan.planCode, 
+                ref: '' + Math.floor((Math.random() * 1000000000) + 1), // Generate a unique reference number
+                metadata: {
+                    custom_fields: [
+                        {
+                            display_name: "Customer Name",
+                            variable_name: "customer_name",
+                            value: customerName
+                        }
+                    ]
+                },
+                callback: function(response: any) {
+                    console.log('Paystack success:', response);
+                    // In production, verify the transaction reference on your backend
+                    onComplete();
+                    setIsLoading(false);
+                },
+                onClose: function() {
+                    // alert('Transaction was not completed, window closed.');
+                    setIsLoading(false);
+                }
+            });
+            handler.openIframe();
+            return;
+        }
+    }
 
-    // Simulation of a Gateway Popup
+    // Simulation of a Gateway Popup (Fallback if script fails or just for Demo)
     setTimeout(() => {
-        const success = window.confirm(`[Mock ${provider === 'paystack' ? 'Paystack' : 'Flutterwave'} Popup]\n\nProcessing payment for ${plan.name}...\n\nClick OK to simulate Success, Cancel to simulate Failure.`);
+        const isRecurring = provider === 'paystack';
+        const msg = isRecurring 
+            ? `[Mock Paystack Popup]\n\nProcessing RECURRING subscription for ${plan.name} (${plan.price}/mo)...\n\nPlan Code: ${plan.planCode}\n\nClick OK to simulate Success, Cancel to simulate Failure.`
+            : `[Mock Flutterwave Popup]\n\nProcessing payment for ${plan.name}...\n\nClick OK to simulate Success, Cancel to simulate Failure.`;
+
+        const success = window.confirm(msg);
         
         setIsLoading(false);
         
@@ -109,7 +143,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
                     ) : (
                         <>
                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M4 4h16a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2zm0 4v10h16V8H4z" /></svg>
-                         Pay with Paystack
+                         Subscribe with Paystack
                         </>
                     )}
                 </button>
