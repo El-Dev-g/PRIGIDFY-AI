@@ -10,110 +10,49 @@ interface CheckoutPageProps {
 
 export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, onCancel }) => {
   const [isLoading, setIsLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    name: '',
-    cardNumber: '',
-    expiry: '',
-    cvc: ''
-  });
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [customerEmail, setCustomerEmail] = useState('');
+  const [customerName, setCustomerName] = useState('');
 
   const getPlanDetails = (id: string) => {
-      if (id.includes('pro')) return { name: 'Pro Plan', price: '$29.00' };
-      if (id.includes('enterprise')) return { name: 'Enterprise Plan', price: '$99.00' };
-      return { name: 'Unknown Plan', price: '$0.00' };
+      if (id.includes('pro')) return { name: 'Pro Plan', price: '$29.00', currency: 'USD' };
+      // Enterprise removed from UI, keeping generic fallback
+      return { name: 'Unknown Plan', price: '$0.00', currency: 'USD' };
   };
 
   const plan = getPlanDetails(planId);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    let formattedValue = value;
-    
-    if (name === 'cardNumber') {
-        // Allow spaces during edit but strip them for processing
-        const numbers = value.replace(/\D/g, '');
-        // Limit to 16 digits
-        const truncated = numbers.substring(0, 16);
-        // Add space every 4 digits
-        formattedValue = truncated.replace(/(\d{4})(?=\d)/g, '$1 ');
-    } else if (name === 'expiry') {
-        // Strip non-numbers
-        const numbers = value.replace(/\D/g, '');
-        // Limit to 4 digits (MMYY)
-        const truncated = numbers.substring(0, 4);
+  const handlePayment = (provider: 'paystack' | 'flutterwave') => {
+    if (!customerEmail || !customerName) {
+        alert("Please enter your name and email to proceed.");
+        return;
+    }
+
+    setIsLoading(true);
+
+    // -------------------------------------------------------------------------
+    // INTEGRATION NOTE:
+    // This is where you would initialize the Paystack or Flutterwave Popup.
+    //
+    // Example for Paystack:
+    // const paystack = new PaystackPop();
+    // paystack.newTransaction({
+    //    key: 'pk_live_...',
+    //    email: customerEmail,
+    //    amount: plan.price * 100,
+    //    onSuccess: (transaction) => { onComplete(); }
+    // });
+    // -------------------------------------------------------------------------
+
+    // Simulation of a Gateway Popup
+    setTimeout(() => {
+        const success = window.confirm(`[Mock ${provider === 'paystack' ? 'Paystack' : 'Flutterwave'} Popup]\n\nProcessing payment for ${plan.name}...\n\nClick OK to simulate Success, Cancel to simulate Failure.`);
         
-        if (truncated.length >= 2) {
-            formattedValue = `${truncated.substring(0, 2)}/${truncated.substring(2)}`;
-        } else {
-            formattedValue = truncated;
-        }
-    } else if (name === 'cvc') {
-        // Only numbers, max 4 digits
-        formattedValue = value.replace(/\D/g, '').substring(0, 4);
-    }
-
-    setFormData(prev => ({ ...prev, [name]: formattedValue }));
-    
-    // Clear error for field
-    if (errors[name]) {
-        setErrors(prev => {
-            const newErrors = { ...prev };
-            delete newErrors[name];
-            return newErrors;
-        });
-    }
-  };
-
-  const validateForm = () => {
-      const newErrors: Record<string, string> = {};
-      
-      if (!formData.name.trim()) {
-          newErrors.name = 'Name on card is required';
-      }
-
-      const rawCard = formData.cardNumber.replace(/\s/g, '');
-      if (rawCard.length !== 16) {
-          newErrors.cardNumber = 'Please enter a valid 16-digit card number';
-      }
-
-      if (formData.expiry.length !== 5) {
-          newErrors.expiry = 'Enter MM/YY';
-      } else {
-          const [monthStr, yearStr] = formData.expiry.split('/');
-          const month = parseInt(monthStr, 10);
-          const year = parseInt(yearStr, 10); // 2 digit year
-          
-          const now = new Date();
-          const currentYear = parseInt(now.getFullYear().toString().substring(2));
-          const currentMonth = now.getMonth() + 1;
-
-          if (isNaN(month) || month < 1 || month > 12) {
-              newErrors.expiry = 'Invalid month';
-          } else if (isNaN(year) || year < currentYear || (year === currentYear && month < currentMonth)) {
-              newErrors.expiry = 'Card has expired';
-          }
-      }
-
-      if (formData.cvc.length < 3) {
-          newErrors.cvc = 'Enter valid CVC';
-      }
-
-      setErrors(newErrors);
-      return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (validateForm()) {
-        setIsLoading(true);
-        // Simulate payment processing
-        setTimeout(() => {
-            setIsLoading(false);
+        setIsLoading(false);
+        
+        if (success) {
             onComplete();
-        }, 2000);
-    }
+        }
+    }, 1500);
   };
 
   return (
@@ -132,106 +71,57 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
             <p className="text-xl font-bold text-indigo-600 dark:text-indigo-400">{plan.price}</p>
          </div>
 
-         <form onSubmit={handleSubmit} className="space-y-6">
+         <div className="space-y-6">
             <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Name on Card</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Full Name</label>
                 <div className="mt-1">
                     <input 
                         type="text" 
-                        name="name"
-                        value={formData.name}
-                        onChange={handleInputChange}
-                        className={`block w-full rounded-md shadow-sm sm:text-sm p-2 border ${
-                            errors.name 
-                            ? 'border-red-300 text-red-900 focus:border-red-500 focus:ring-red-500' 
-                            : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:border-indigo-500 focus:ring-indigo-500'
-                        }`}
+                        value={customerName}
+                        onChange={(e) => setCustomerName(e.target.value)}
+                        className="block w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"
                         placeholder="John Doe" 
                     />
-                    {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
                 </div>
             </div>
+
             <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Card Number</label>
-                <div className="mt-1 relative rounded-md shadow-sm">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Email Address</label>
+                <div className="mt-1">
                     <input 
-                        type="text" 
-                        name="cardNumber"
-                        value={formData.cardNumber}
-                        onChange={handleInputChange}
-                        className={`block w-full rounded-md p-2 border pr-10 ${
-                            errors.cardNumber 
-                            ? 'border-red-300 text-red-900 focus:border-red-500 focus:ring-red-500' 
-                            : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:border-indigo-500 focus:ring-indigo-500'
-                        } sm:text-sm`}
-                        placeholder="0000 0000 0000 0000" 
+                        type="email" 
+                        value={customerEmail}
+                        onChange={(e) => setCustomerEmail(e.target.value)}
+                        className="block w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"
+                        placeholder="john@example.com" 
                     />
-                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                        <svg className="h-5 w-5 text-slate-400" fill="currentColor" viewBox="0 0 24 24">
-                           <path d="M2 7a2 2 0 012-2h16a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V7zm2 0v10h16V7H4z" opacity="0.5"/>
-                           <path d="M4 11h16v2H4z" />
-                        </svg>
-                    </div>
-                </div>
-                {errors.cardNumber && <p className="mt-1 text-sm text-red-600">{errors.cardNumber}</p>}
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-                <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Expiry</label>
-                    <div className="mt-1">
-                        <input 
-                            type="text" 
-                            name="expiry"
-                            value={formData.expiry}
-                            onChange={handleInputChange}
-                            className={`block w-full rounded-md shadow-sm sm:text-sm p-2 border ${
-                                errors.expiry 
-                                ? 'border-red-300 text-red-900 focus:border-red-500 focus:ring-red-500' 
-                                : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:border-indigo-500 focus:ring-indigo-500'
-                            }`}
-                            placeholder="MM/YY" 
-                        />
-                        {errors.expiry && <p className="mt-1 text-sm text-red-600">{errors.expiry}</p>}
-                    </div>
-                </div>
-                <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">CVC</label>
-                    <div className="mt-1">
-                        <input 
-                            type="text" 
-                            name="cvc"
-                            value={formData.cvc}
-                            onChange={handleInputChange}
-                            className={`block w-full rounded-md shadow-sm sm:text-sm p-2 border ${
-                                errors.cvc 
-                                ? 'border-red-300 text-red-900 focus:border-red-500 focus:ring-red-500' 
-                                : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:border-indigo-500 focus:ring-indigo-500'
-                            }`}
-                            placeholder="123" 
-                        />
-                        {errors.cvc && <p className="mt-1 text-sm text-red-600">{errors.cvc}</p>}
-                    </div>
                 </div>
             </div>
 
             <div className="pt-4 flex flex-col gap-3">
                 <button
-                    type="submit"
+                    onClick={() => handlePayment('paystack')}
                     disabled={isLoading}
-                    className="w-full flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full flex items-center justify-center gap-2 rounded-md border border-transparent bg-[#0ba4db] py-3 px-4 text-sm font-bold text-white shadow-sm hover:bg-[#0a93c4] focus:outline-none focus:ring-2 focus:ring-[#0ba4db] focus:ring-offset-2 disabled:opacity-50 transition-colors"
                 >
                     {isLoading ? (
-                        <div className="flex items-center">
-                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            Processing...
-                        </div>
+                         <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                     ) : (
-                        `Pay ${plan.price}`
+                        <>
+                         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M4 4h16a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2zm0 4v10h16V8H4z" /></svg>
+                         Pay with Paystack
+                        </>
                     )}
                 </button>
+                
+                <button
+                    onClick={() => handlePayment('flutterwave')}
+                    disabled={isLoading}
+                    className="w-full flex items-center justify-center gap-2 rounded-md border border-[#FB9129] bg-[#FB9129]/10 py-3 px-4 text-sm font-bold text-[#FB9129] hover:bg-[#FB9129]/20 focus:outline-none focus:ring-2 focus:ring-[#FB9129] focus:ring-offset-2 disabled:opacity-50 transition-colors"
+                >
+                    Pay with Flutterwave
+                </button>
+
                 <button
                     type="button"
                     onClick={onCancel}
@@ -241,7 +131,11 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
                     Cancel
                 </button>
             </div>
-         </form>
+            
+            <p className="text-xs text-center text-slate-400 mt-4">
+                Payments are secured by industry standard encryption. We do not store your card details.
+            </p>
+         </div>
       </div>
     </div>
   );

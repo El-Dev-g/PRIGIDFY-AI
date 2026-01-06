@@ -96,8 +96,23 @@ export const Planner: React.FC<PlannerProps> = ({ user }) => {
   const handleNext = useCallback(async () => {
     if (currentStep < totalSteps - 1) {
       if (currentStep === totalSteps - 2) { // Review step (now second to last)
-        setIsLoading(true);
         setError(null);
+        setIsLoading(true);
+        
+        // Enforce Plan Limits
+        if (user.plan === 'starter') {
+            try {
+                const plans = await db.plans.list(user.id);
+                if (plans.length >= 15) {
+                    setError("Starter plan limit reached (15 plans). Please upgrade to Pro for unlimited plans.");
+                    setIsLoading(false);
+                    return;
+                }
+            } catch (e) {
+                console.error("Failed to check plan limit", e);
+            }
+        }
+
         try {
           // Pass user plan to service to select correct model
           const plan = await generateBusinessPlan(formData, user.plan);
@@ -113,7 +128,7 @@ export const Planner: React.FC<PlannerProps> = ({ user }) => {
         setCurrentStep(step => step + 1);
       }
     }
-  }, [currentStep, totalSteps, formData, saveToHistory, user.plan]);
+  }, [currentStep, totalSteps, formData, saveToHistory, user.plan, user.id]);
 
   const handleBack = useCallback(() => {
     if (currentStep > 0) {
@@ -169,7 +184,7 @@ export const Planner: React.FC<PlannerProps> = ({ user }) => {
               onClick={() => { setError(null); handleBack(); }}
               className="mt-6 inline-flex items-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition"
             >
-              Go Back and Edit
+              Go Back
             </button>
         </div>
       );

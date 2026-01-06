@@ -1,125 +1,22 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { db, BlogPost } from '../services/db';
 
 interface BlogPostPageProps {
-  postId: number;
+  postId: number | string;
   onBack: () => void;
 }
 
-// Mock data for the full blog posts
-const blogPosts: Record<number, { title: string; date: string; author: string; category: string; content: React.ReactNode; image?: string }> = {
-  1: {
-    title: 'How to Validate Your Business Idea in 48 Hours',
-    date: 'Mar 16, 2024',
-    author: 'Sarah Chen',
-    category: 'Startup Strategy',
-    image: 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80',
-    content: (
-      <>
-        <p className="lead text-xl text-slate-600 dark:text-slate-300 mb-8">
-          Before writing a full plan, ensure your idea has legs. Here is a step-by-step guide to rapid market validation using low-code tools.
-        </p>
-        
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mt-8 mb-4">The Myth of the "Stealth Mode"</h2>
-        <p className="mb-6 text-slate-700 dark:text-slate-300 leading-relaxed">
-          Many first-time founders believe they need to protect their idea at all costs. They spend months building a product in isolation, only to launch and hear crickets. The truth is, execution is everything. Your idea is likely not as unique as you think, but your specific take on it might be. The only way to find out is to talk to people.
-        </p>
-
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mt-8 mb-4">Step 1: The Smoke Test</h2>
-        <p className="mb-6 text-slate-700 dark:text-slate-300 leading-relaxed">
-          You don't need a product to sell a product. Create a simple landing page using tools like Carrd or Webflow. Explain the value proposition clearly. Instead of a "Sign Up" button, use a "Join Waitlist" or "Pre-order" button. 
-        </p>
-        <ul className="list-disc pl-6 mb-6 text-slate-700 dark:text-slate-300 space-y-2">
-            <li><strong>Define the problem:</strong> "Tired of tracking expenses in Excel?"</li>
-            <li><strong>Offer the solution:</strong> "AI-powered bookkeeping for freelancers."</li>
-            <li><strong>Call to Action:</strong> "Get early access."</li>
-        </ul>
-
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mt-8 mb-4">Step 2: Targeted Traffic</h2>
-        <p className="mb-6 text-slate-700 dark:text-slate-300 leading-relaxed">
-          Don't just post on your personal Facebook. Spend $50 on Google Ads or Reddit Ads targeting specific keywords related to the problem you are solving. If you can't get anyone to click your ad, you either have a bad ad, or nobody is searching for a solution to that problem.
-        </p>
-
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mt-8 mb-4">Step 3: Talk to Humans</h2>
-        <p className="mb-6 text-slate-700 dark:text-slate-300 leading-relaxed">
-          When someone joins your waitlist, reach out personally. "Hey, thanks for signing up. I'm building this because I was frustrated with X. Is that why you signed up?" These conversations are gold. They will write your business plan for you.
-        </p>
-
-        <div className="bg-indigo-50 dark:bg-indigo-900/20 border-l-4 border-indigo-500 p-6 my-8">
-            <p className="text-indigo-900 dark:text-indigo-200 font-medium italic">
-                "Validation isn't about people saying they like your idea. It's about people trying to give you money or time to solve their problem."
-            </p>
-        </div>
-      </>
-    )
-  },
-  2: {
-    title: 'The 5 Most Common Mistakes in Financial Projections',
-    date: 'Mar 10, 2024',
-    author: 'Michael Ross',
-    category: 'Finance',
-    image: 'https://images.unsplash.com/photo-1554224155-98406856d03a?ixlib=rb-4.0.3&auto=format&fit=crop&w=2072&q=80',
-    content: (
-      <>
-        <p className="lead text-xl text-slate-600 dark:text-slate-300 mb-8">
-          Investors spot these errors instantly. Learn how to balance optimism with realism when forecasting your revenue and expenses.
-        </p>
-
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mt-8 mb-4">1. The "Hockey Stick" Curve Without Logic</h2>
-        <p className="mb-6 text-slate-700 dark:text-slate-300 leading-relaxed">
-          Every founder wants to show a graph that goes up and to the right. But if your revenue jumps from $10k to $1M in month 6 without a corresponding increase in marketing spend or sales staff, investors will call your bluff. Growth is expensive.
-        </p>
-
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mt-8 mb-4">2. Underestimating CAC (Customer Acquisition Cost)</h2>
-        <p className="mb-6 text-slate-700 dark:text-slate-300 leading-relaxed">
-           "Viral marketing" is not a strategy; it's a lottery ticket. You must assume you will pay for customers. Calculate your CAC conservatively. If you are selling a $20/month SaaS, can you afford to spend $100 to acquire a user? 
-        </p>
-
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mt-8 mb-4">3. Forgetting Cash Flow</h2>
-        <p className="mb-6 text-slate-700 dark:text-slate-300 leading-relaxed">
-          Profit is not cash. You can be profitable on paper but go bankrupt because your clients pay you in 60 days while your employees need to be paid today. Always include a cash flow statement, not just an income statement.
-        </p>
-      </>
-    )
-  },
-  3: {
-    title: 'Why Storytelling Matters in Your Executive Summary',
-    date: 'Feb 28, 2024',
-    author: 'Jessica Lee',
-    category: 'Pitching',
-    image: 'https://images.unsplash.com/photo-1512486130939-2c4f79935e4f?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80',
-    content: (
-      <>
-        <p className="lead text-xl text-slate-600 dark:text-slate-300 mb-8">
-           Facts tell, but stories sell. Discover how to weave a compelling narrative that hooks investors from the very first paragraph.
-        </p>
-
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mt-8 mb-4">The Human Brain on Stories</h2>
-        <p className="mb-6 text-slate-700 dark:text-slate-300 leading-relaxed">
-          Data is important, but context is king. Investors review hundreds of decks. If your executive summary starts with "We are a generic solution for X market," they are already asleep. Start with a character. Start with a conflict.
-        </p>
-        
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mt-8 mb-4">The Hero's Journey</h2>
-        <p className="mb-6 text-slate-700 dark:text-slate-300 leading-relaxed">
-          Position your customer as the hero, not your company. Your customer has a problem (the villain). Your company is the guide (Obi-Wan Kenobi) giving them the tool (the lightsaber) to win.
-        </p>
-
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mt-8 mb-4">Structure of a Narrative Summary</h2>
-        <ul className="list-decimal pl-6 mb-6 text-slate-700 dark:text-slate-300 space-y-2">
-            <li><strong>The Hook:</strong> A startling statistic or a relatable anecdote.</li>
-            <li><strong>The Turn:</strong> Why current solutions fail.</li>
-            <li><strong>The Reveal:</strong> Your unique insight/solution.</li>
-        </ul>
-      </>
-    )
-  }
-};
+// Fallback content for static posts logic is now moved to db.ts, 
+// this component now just fetches by ID.
 
 export const BlogPostPage: React.FC<BlogPostPageProps> = ({ postId, onBack }) => {
-  const post = blogPosts[postId];
+  const [post, setPost] = useState<BlogPost | undefined>(undefined);
 
   useEffect(() => {
     window.scrollTo(0, 0);
+    const fetchedPost = db.blogs.getById(postId);
+    setPost(fetchedPost);
   }, [postId]);
 
   if (!post) {
@@ -165,7 +62,18 @@ export const BlogPostPage: React.FC<BlogPostPageProps> = ({ postId, onBack }) =>
 
       <div className="mx-auto max-w-3xl px-6 lg:px-8 py-12">
         <article className="prose prose-lg prose-slate dark:prose-invert mx-auto">
-            {post.content}
+            {/* 
+               If content is a string (HTML from AI), use dangerouslySetInnerHTML.
+               If it's ReactNode (Static posts), render directly. 
+               However, to unify, we updated db.ts static posts to string HTML too for simplicity.
+               If legacy format remains, we handle it.
+            */}
+            {typeof post.content === 'string' ? (
+                <div dangerouslySetInnerHTML={{ __html: post.content }} />
+            ) : (
+                // @ts-ignore - Handle legacy ReactNode if any
+                <div>{post.content}</div>
+            )}
         </article>
 
         <div className="mt-16 border-t border-slate-200 dark:border-slate-800 pt-8 flex justify-between items-center">

@@ -18,7 +18,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ user, onSelectPlan, on
       id: 'tier-starter',
       priceMonthly: '$0',
       description: 'Perfect for exploring your first business idea.',
-      features: ['1 Business Plan', 'Basic AI Generation', 'Standard Support', 'Export to Text'],
+      features: ['15 Business Plans', 'Basic AI Generation', 'Standard Support', 'Export to Text'],
       value: 'starter'
     },
     {
@@ -34,27 +34,13 @@ export const BillingPage: React.FC<BillingPageProps> = ({ user, onSelectPlan, on
         'Export to PDF & Docx',
       ],
       value: 'pro'
-    },
-    {
-      name: 'Enterprise',
-      id: 'tier-enterprise',
-      priceMonthly: '$99',
-      description: 'Dedicated support for incubators and agencies.',
-      features: [
-        'Team Collaboration',
-        'Custom Branding',
-        'API Access',
-        'Dedicated Account Manager',
-        'Custom AI Training',
-      ],
-      value: 'enterprise'
-    },
+    }
   ];
 
-  const planOrder = ['starter', 'pro', 'enterprise'];
+  const planOrder = ['starter', 'pro'];
 
   const handleAction = async (tier: typeof tiers[0]) => {
-      const currentPlanIndex = planOrder.indexOf(user.plan);
+      const currentPlanIndex = planOrder.indexOf(user.plan === 'enterprise' ? 'pro' : user.plan); // Fallback if user is already enterprise
       const targetPlanIndex = planOrder.indexOf(tier.value);
 
       if (currentPlanIndex === targetPlanIndex) return;
@@ -94,10 +80,10 @@ export const BillingPage: React.FC<BillingPageProps> = ({ user, onSelectPlan, on
             </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
              {tiers.map((tier) => {
                  const isCurrent = user.plan === tier.value;
-                 const isUpgrade = planOrder.indexOf(tier.value) > planOrder.indexOf(user.plan);
+                 const isUpgrade = planOrder.indexOf(tier.value) > planOrder.indexOf(user.plan === 'enterprise' ? 'pro' : user.plan);
                  
                  return (
                     <div

@@ -6,7 +6,11 @@ const KEYS = {
   DRAFT: 'jhaidify_draft',
   USER_SESSION: 'jhaidify_session',
   LOCAL_PLANS: 'jhaidify_local_plans',
-  LOCAL_SHARES: 'jhaidify_local_shares'
+  LOCAL_SHARES: 'jhaidify_local_shares',
+  BLOG_POSTS: 'jhaidify_blog_posts',
+  LAST_BLOG_GEN: 'jhaidify_last_blog_gen',
+  DAILY_BLOG_COUNT: 'jhaidify_daily_blog_count',
+  LAST_RESET_DATE: 'jhaidify_last_reset_date'
 };
 
 const mapUser = (sessionUser: any, profile: any): UserProfile => ({
@@ -28,6 +32,55 @@ const isUUID = (str: string) => {
   return regex.test(str);
 };
 
+export interface BlogPost {
+    id: number | string;
+    title: string;
+    excerpt: string;
+    content: string;
+    date: string;
+    category: string;
+    author: string;
+    image?: string;
+    isAi?: boolean;
+}
+
+// Initial "Seeded" Posts - These act as the first batch of AI generations
+const SEEDED_POSTS: BlogPost[] = [
+  {
+    id: 'seed-1',
+    title: 'How to Validate Your Business Idea in 48 Hours',
+    excerpt: 'Before writing a full plan, ensure your idea has legs. Here is a step-by-step guide to rapid market validation using low-code tools.',
+    date: 'Mar 16, 2025',
+    category: 'Startup Strategy',
+    author: 'PRIGIDFY',
+    isAi: true,
+    image: 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80',
+    content: `<p class="lead text-xl text-slate-600 dark:text-slate-300 mb-8">Before writing a full plan, ensure your idea has legs. Validation is the process of testing your core assumptions before investing significant time or money.</p><h2>1. The Problem Interview</h2><p>Start by talking to potential customers. Don't pitch your solution; ask about their problems.</p><h2>2. The Smoke Test</h2><p>Set up a simple landing page describing your value proposition. Drive traffic and measure sign-ups.</p>`
+  },
+  {
+    id: 'seed-2',
+    title: 'The 5 Most Common Mistakes in Financial Projections',
+    excerpt: 'Investors spot these errors instantly. Learn how to balance optimism with realism when forecasting your revenue and expenses.',
+    date: 'Mar 10, 2025',
+    category: 'Finance',
+    author: 'PRIGIDFY',
+    isAi: true,
+    image: 'https://images.unsplash.com/photo-1554224155-98406856d03a?ixlib=rb-4.0.3&auto=format&fit=crop&w=2072&q=80',
+    content: `<p>Financial projections are a blend of art and science. Here are the top mistakes founders make:</p><ul><li><strong>Overestimating early revenue:</strong> Sales cycles are often longer than you think.</li><li><strong>Ignoring hidden costs:</strong> Don't forget insurance, software subscriptions, and transaction fees.</li><li><strong>Confusing cash flow with profit:</strong> You can be profitable on paper but run out of cash.</li></ul>`
+  },
+  {
+    id: 'seed-3',
+    title: 'Why Storytelling Matters in Your Executive Summary',
+    excerpt: 'Facts tell, but stories sell. Discover how to weave a compelling narrative that hooks investors from the very first paragraph.',
+    date: 'Feb 28, 2025',
+    category: 'Pitching',
+    author: 'PRIGIDFY',
+    isAi: true,
+    image: 'https://images.unsplash.com/photo-1512486130939-2c4f79935e4f?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80',
+    content: `<p>Your executive summary is the most important part of your business plan. It's the hook.</p><p>Instead of starting with dry statistics, start with a character—your target customer—and the conflict they face. Show how your solution resolves this conflict and creates a better future.</p>`
+  }
+];
+
 export const db = {
   auth: {
     async getSession(): Promise<UserProfile | null> {
@@ -42,9 +95,6 @@ export const db = {
         }
         
         if (!session?.user) {
-            // If Supabase has no session, check if we have an offline mock user 
-            // This ensures users who were using Offline mode don't get locked out if config appears
-            // but they haven't logged in via Supabase yet.
             const mock = getMockUser();
             return mock; 
         }
@@ -66,7 +116,6 @@ export const db = {
       }
     },
 
-    // New method to listen to auth changes
     onAuthStateChange(callback: (event: string, session: any) => void) {
         if (isSupabaseConfigured) {
             return supabase.auth.onAuthStateChange(callback);
@@ -195,7 +244,6 @@ export const db = {
   plans: {
     async create(plan: SavedPlan) {
       const fallback = () => {
-          console.log("Saving plan to local storage (Offline)");
           const plans = JSON.parse(localStorage.getItem(KEYS.LOCAL_PLANS) || '[]');
           plans.push(plan);
           localStorage.setItem(KEYS.LOCAL_PLANS, JSON.stringify(plans));
@@ -219,14 +267,7 @@ export const db = {
           const { error } = await supabase.from('plans').insert([dbPlan]);
           
           if (error) {
-              console.error("Supabase Plan Insert Failed:", error);
-              if (error.code === '42P01') { 
-                  return fallback();
-              }
-              if (error.code === '42501') {
-                   return fallback();
-              }
-              throw error;
+              return fallback();
           }
       } catch (e) {
           console.error("Critical error saving plan:", e);
@@ -336,5 +377,69 @@ export const db = {
            return fallback();
        }
     }
+  },
+
+  blogs: {
+      getAll(): BlogPost[] {
+          // Initialize/Seed database if empty
+          let localPosts: BlogPost[] = JSON.parse(localStorage.getItem(KEYS.BLOG_POSTS) || '[]');
+          
+          if (localPosts.length === 0) {
+              // Seed the initial state with "AI generated" posts in 2025
+              localPosts = SEEDED_POSTS;
+              localStorage.setItem(KEYS.BLOG_POSTS, JSON.stringify(localPosts));
+          }
+          
+          return localPosts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      },
+      
+      getById(id: string | number): BlogPost | undefined {
+          const all = this.getAll();
+          // loose equality for string/number id mix
+          return all.find(p => p.id == id);
+      },
+
+      add(post: BlogPost) {
+          const localPosts = JSON.parse(localStorage.getItem(KEYS.BLOG_POSTS) || '[]');
+          localPosts.unshift(post);
+          // Keep only last 20 generated posts to avoid bloat
+          if (localPosts.length > 20) {
+              localPosts.length = 20;
+          }
+          localStorage.setItem(KEYS.BLOG_POSTS, JSON.stringify(localPosts));
+      },
+
+      shouldGenerateNew(): boolean {
+          const now = Date.now();
+          const lastGen = localStorage.getItem(KEYS.LAST_BLOG_GEN);
+          const lastReset = localStorage.getItem(KEYS.LAST_RESET_DATE);
+          const currentDay = new Date().toDateString();
+
+          // 1. Reset daily counter if it's a new day
+          if (lastReset !== currentDay) {
+              localStorage.setItem(KEYS.DAILY_BLOG_COUNT, '0');
+              localStorage.setItem(KEYS.LAST_RESET_DATE, currentDay);
+          }
+
+          // 2. Check Daily Limit (Max 5 blogs per day)
+          const dailyCount = parseInt(localStorage.getItem(KEYS.DAILY_BLOG_COUNT) || '0');
+          if (dailyCount >= 5) {
+              return false; 
+          }
+
+          // 3. Check Frequency (Every 2 hours)
+          if (!lastGen) return true;
+          
+          const diff = now - parseInt(lastGen);
+          const TWO_HOURS = 2 * 60 * 60 * 1000;
+          
+          return diff > TWO_HOURS;
+      },
+
+      recordGeneration() {
+          const dailyCount = parseInt(localStorage.getItem(KEYS.DAILY_BLOG_COUNT) || '0');
+          localStorage.setItem(KEYS.DAILY_BLOG_COUNT, (dailyCount + 1).toString());
+          localStorage.setItem(KEYS.LAST_BLOG_GEN, Date.now().toString());
+      }
   }
 };

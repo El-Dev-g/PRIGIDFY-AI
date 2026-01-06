@@ -70,6 +70,50 @@ export const generateNameSuggestions = async (keyword: string): Promise<string[]
   }
 };
 
+export const generateAutoBlogPost = async (): Promise<{ title: string; excerpt: string; content: string; category: string }> => {
+  const topics = [
+      "The Future of AI in Entrepreneurship",
+      "How PRIGIDFY AI is Changing Business Planning",
+      "Startup Mistakes to Avoid in 2025",
+      "Scaling Your Business with Artificial Intelligence",
+      "From Idea to IPO: A Guide",
+      "Understanding Financial Projections for Non-CFOs",
+      "The Art of the Pitch Deck"
+  ];
+  
+  const randomTopic = topics[Math.floor(Math.random() * topics.length)];
+
+  const prompt = `
+    You are the lead content editor for "PRIGIDFY AI", a business planning platform.
+    Write a professional, engaging blog post about: "${randomTopic}".
+    
+    The tone should be insightful, encouraging, and professional.
+    
+    Return the response in strict JSON format with the following keys:
+    - title: A catchy headline.
+    - excerpt: A 2-sentence summary of the post.
+    - category: A short category name (e.g., "Strategy", "AI", "Finance").
+    - content: The full blog post body in HTML format (use <p>, <h2>, <ul>, <li> tags). Do not use Markdown.
+  `;
+
+  try {
+    const ai = getAiClient();
+    const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: prompt,
+        config: {
+            responseMimeType: "application/json"
+        }
+    });
+
+    const json = JSON.parse(response.text || "{}");
+    return json;
+  } catch (error) {
+      console.error("Blog generation failed", error);
+      throw error;
+  }
+};
+
 export const generateBusinessPlan = async (formData: FormData, planType: PlanType): Promise<string> => {
   // Use Gemini 3 Pro for paid plans (Pro/Enterprise) for complex tasks, Flash for free tier
   const textModel = (planType === 'pro' || planType === 'enterprise') 

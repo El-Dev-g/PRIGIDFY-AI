@@ -127,7 +127,7 @@ export const ResultStep: React.FC<ResultStepProps> = ({ businessPlan, onRestart,
   });
   const [isSharing, setIsSharing] = useState(false);
 
-  const canDownloadPDF = userPlan && userPlan !== 'starter';
+  const isPro = userPlan && (userPlan === 'pro' || userPlan === 'enterprise');
 
   useEffect(() => {
      if (initialShareId) {
@@ -142,8 +142,43 @@ export const ResultStep: React.FC<ResultStepProps> = ({ businessPlan, onRestart,
     });
   }, [businessPlan]);
 
+  const handleDownloadText = useCallback(() => {
+    const element = document.createElement("a");
+    const file = new Blob([businessPlan], {type: 'text/plain'});
+    element.href = URL.createObjectURL(file);
+    element.download = "Business_Plan.txt";
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+  }, [businessPlan]);
+
+  const handleDownloadDocx = useCallback(() => {
+    if (!isPro) {
+         alert("Upgrade to Pro to download as Word/Docx.");
+         return;
+    }
+    
+    // Create a simple HTML document that Word can open as a .doc file
+    const content = document.getElementById('business-plan-container')?.innerHTML;
+    const preHtml = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>Business Plan</title></head><body>";
+    const postHtml = "</body></html>";
+    const html = preHtml + (content || '') + postHtml;
+
+    const blob = new Blob(['\ufeff', html], {
+        type: 'application/msword'
+    });
+    
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'Business_Plan.doc'; // .doc is more reliably opened by Word as HTML than .docx without a real packager
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }, [isPro]);
+
   const handleDownloadPDF = useCallback(() => {
-    if (!canDownloadPDF) {
+    if (!isPro) {
         alert("Please upgrade to Pro or Enterprise plan to download PDF.");
         return;
     }
@@ -173,7 +208,7 @@ export const ResultStep: React.FC<ResultStepProps> = ({ businessPlan, onRestart,
         alert("PDF generator library not loaded. Please refresh the page.");
         setIsGeneratingPdf(false);
     }
-  }, [canDownloadPDF]);
+  }, [isPro]);
 
   const handleShare = useCallback(async () => {
     if (shareUrl) {
@@ -236,6 +271,17 @@ export const ResultStep: React.FC<ResultStepProps> = ({ businessPlan, onRestart,
       {/* Action Bar */}
       <div className="flex flex-col items-center mb-10 sticky top-4 z-10 max-w-4xl mx-auto">
           <div className="flex flex-wrap gap-4 justify-center bg-slate-50/90 dark:bg-slate-900/90 backdrop-blur-sm p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm w-full">
+              {/* Export to Text (Allowed for everyone) */}
+              <button
+                  onClick={handleDownloadText}
+                  className="inline-flex items-center rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-white shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition"
+              >
+                  <svg className="mr-2 h-4 w-4 text-slate-500 dark:text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Download .txt
+              </button>
+
               <button
                   onClick={handleCopy}
                   className="inline-flex items-center rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-white shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition"
@@ -246,12 +292,13 @@ export const ResultStep: React.FC<ResultStepProps> = ({ businessPlan, onRestart,
                   {copied ? 'Copied!' : 'Copy Text'}
               </button>
 
-              <div className="relative group">
+              <div className="relative group flex gap-2">
+                {/* PDF Download (Pro Only) */}
                 <button
                     onClick={handleDownloadPDF}
-                    disabled={isGeneratingPdf || !canDownloadPDF}
+                    disabled={isGeneratingPdf || !isPro}
                     className={`inline-flex items-center rounded-lg border px-4 py-2 text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition ${
-                        !canDownloadPDF 
+                        !isPro 
                         ? 'border-slate-200 bg-slate-100 text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-500 cursor-not-allowed'
                         : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-700'
                     }`}
@@ -266,12 +313,29 @@ export const ResultStep: React.FC<ResultStepProps> = ({ businessPlan, onRestart,
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                         </svg>
                     )}
-                    {isGeneratingPdf ? 'Generating...' : !canDownloadPDF ? 'PDF (Pro Only)' : 'Download PDF'}
+                    {isGeneratingPdf ? 'Generating...' : !isPro ? 'PDF (Pro)' : 'Download PDF'}
                 </button>
+
+                 {/* Docx Download (Pro Only) */}
+                 <button
+                    onClick={handleDownloadDocx}
+                    disabled={!isPro}
+                    className={`inline-flex items-center rounded-lg border px-4 py-2 text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition ${
+                        !isPro 
+                        ? 'border-slate-200 bg-slate-100 text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-500 cursor-not-allowed'
+                        : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-700'
+                    }`}
+                >
+                     <svg className="mr-2 h-4 w-4 text-slate-500 dark:text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    {!isPro ? 'Docx (Pro)' : 'Download Docx'}
+                </button>
+
                 {/* Tooltip for free users */}
-                {!canDownloadPDF && (
-                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                         Upgrade plan to enable
+                {!isPro && (
+                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
+                         Upgrade to Pro to export files
                      </div>
                 )}
               </div>

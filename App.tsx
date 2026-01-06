@@ -47,7 +47,7 @@ export default function App() {
   const [currentView, setCurrentView] = useState<View>('landing');
   
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
-  const [selectedBlogPostId, setSelectedBlogPostId] = useState<number | null>(null);
+  const [selectedBlogPostId, setSelectedBlogPostId] = useState<number | string | null>(null);
   const [sharedPlanContent, setSharedPlanContent] = useState<string>('');
   const [currentShareId, setCurrentShareId] = useState<string | null>(null);
 
@@ -165,7 +165,7 @@ export default function App() {
     sessionStorage.removeItem('jhaidify_last_view');
   };
 
-  const handleNavigateToPost = (id: number) => {
+  const handleNavigateToPost = (id: number | string) => {
     setSelectedBlogPostId(id);
     setCurrentView('blog-post');
   };

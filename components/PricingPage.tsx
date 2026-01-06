@@ -13,7 +13,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onSelectPlan }) => {
       href: '#',
       priceMonthly: '$0',
       description: 'Perfect for exploring your first business idea.',
-      features: ['1 Business Plan', 'Basic AI Generation', 'Standard Support', 'Export to Text'],
+      features: ['15 Business Plans', 'Basic AI Generation', 'Standard Support', 'Export to Text'],
     },
     {
       name: 'Pro',
@@ -30,20 +30,6 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onSelectPlan }) => {
       ],
       mostPopular: true,
     },
-    {
-      name: 'Enterprise',
-      id: 'tier-enterprise',
-      href: '#',
-      priceMonthly: '$99',
-      description: 'Dedicated support for incubators and agencies.',
-      features: [
-        'Team Collaboration',
-        'Custom Branding',
-        'API Access',
-        'Dedicated Account Manager',
-        'Custom AI Training',
-      ],
-    },
   ];
 
   return (
@@ -58,7 +44,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onSelectPlan }) => {
         <p className="mx-auto mt-6 max-w-2xl text-center text-lg leading-8 text-slate-600 dark:text-slate-300">
           Whether you're just brainstorming or ready to pitch to investors, we have a plan that fits your needs.
         </p>
-        <div className="isolate mx-auto mt-16 grid max-w-md grid-cols-1 gap-y-8 sm:mt-20 lg:mx-0 lg:max-w-none lg:grid-cols-3 lg:gap-x-8">
+        <div className="isolate mx-auto mt-16 grid max-w-md grid-cols-1 gap-y-8 sm:mt-20 lg:mx-0 lg:max-w-4xl lg:grid-cols-2 lg:gap-x-8">
           {tiers.map((tier) => (
             <div
               key={tier.id}
