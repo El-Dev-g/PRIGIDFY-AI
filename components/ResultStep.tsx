@@ -51,8 +51,8 @@ const MarkdownRenderer: React.FC<{ content: string }> = ({ content }) => {
       return;
     }
 
-    // Images: ![Alt](Src)
-    const imageMatch = trimmed.match(/^!\[(.*?)\]\((.*?)\)$/);
+    // Images: ![Alt](Src) - permissive regex
+    const imageMatch = trimmed.match(/^!\[(.*?)\]\((.*)\)$/);
     if (imageMatch) {
       flushBuffer(index);
       elements.push(
@@ -62,6 +62,7 @@ const MarkdownRenderer: React.FC<{ content: string }> = ({ content }) => {
                     src={imageMatch[2]} 
                     alt={imageMatch[1]} 
                     className="w-full h-auto max-h-[500px] object-contain" 
+                    loading="lazy"
                 />
             </div>
             {imageMatch[1] && (
@@ -150,7 +151,6 @@ export const ResultStep: React.FC<ResultStepProps> = ({ businessPlan, onRestart,
     setIsGeneratingPdf(true);
     const element = document.getElementById('business-plan-container');
     
-    // Basic options for html2pdf
     const opt = {
       margin:       0.5,
       filename:     'Business_Plan.pdf',
@@ -159,7 +159,6 @@ export const ResultStep: React.FC<ResultStepProps> = ({ businessPlan, onRestart,
       jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
     };
 
-    // Check if library is available (loaded via CDN in index.html)
     // @ts-ignore
     if (window.html2pdf) {
         // @ts-ignore

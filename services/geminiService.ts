@@ -9,7 +9,10 @@ const getAiClient = () => {
   return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
-const generateImage = async (prompt: string): Promise<string | null> => {
+// Helper for delay to avoid rate limiting
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const generateImage = async (prompt: string, retries = 1): Promise<string | null> => {
   try {
     const ai = getAiClient();
     const response = await ai.models.generateContent({
@@ -30,9 +33,15 @@ const generateImage = async (prompt: string): Promise<string | null> => {
       }
     }
     return null;
-  } catch (error) {
-    console.warn("Failed to generate image for prompt:", prompt, error);
-    // Return null to gracefully degrade if image generation fails
+  } catch (error: any) {
+    // Retry on 429 (Too Many Requests) or 503 (Service Unavailable)
+    if (retries > 0 && (error.status === 429 || error.status === 503 || error.message?.includes('429'))) {
+        console.warn(`Rate limit hit for image. Retrying in 2s...`);
+        await delay(2000);
+        return generateImage(prompt, retries - 1);
+    }
+    
+    console.warn("Failed to generate image for prompt:", prompt.substring(0, 50) + "...", error.message || error);
     return null;
   }
 };
@@ -54,7 +63,6 @@ export const generateNameSuggestions = async (keyword: string): Promise<string[]
     });
     
     const text = response.text || "";
-    // Split by comma, trim whitespace, and filter empty strings
     return text.split(',').map(name => name.trim()).filter(name => name.length > 0);
   } catch (error) {
     console.error("Failed to generate name suggestions", error);
@@ -164,46 +172,42 @@ export const generateBusinessPlan = async (formData: FormData, planType: PlanTyp
       - **### 9.3 Closing Statement**
   `;
 
-  // Start all generations in parallel
-  // Catch individual errors for text generation to provide better feedback
   try {
     const ai = getAiClient();
     
-    const textPromise = ai.models.generateContent({
+    // 1. Generate Text FIRST
+    // We prioritize text generation to ensure the user gets the document even if images fail.
+    // This also avoids the "4 concurrent requests" burst that often triggers rate limits.
+    const textResponse = await ai.models.generateContent({
       model: textModel,
       contents: textPrompt,
     });
 
+    let planText = textResponse.text || "";
+
+    // 2. Generate Images Sequentially (staggered)
+    // Generating images in parallel often hits API limits on free tiers. 
+    // We add a small delay and process them.
     const conceptPrompt = `A high quality, professional, cinematic concept photo representing this business idea: ${formData.businessIdea} (Company Name: ${formData.businessName}). The image should visually communicate the core value proposition.`;
     const orgChartPrompt = `A clean, professional corporate organizational chart diagram structure for a ${formData.businessIdea} business named ${formData.businessName}. Infographic style, white background, minimalist design, showing hierarchy.`;
     const financialPrompt = `A professional business bar chart diagram showing projected positive revenue growth over 3 years. Clean 3D design, white background, blue and green colors, corporate style, upward trend.`;
 
-    const [textResponse, conceptImage, orgImage, financialImage] = await Promise.all([
-      textPromise,
-      generateImage(conceptPrompt),
-      generateImage(orgChartPrompt),
-      generateImage(financialPrompt)
-    ]);
+    const imageRequests = [
+        { prompt: conceptPrompt, placeholder: '{{CONCEPT_IMAGE}}', caption: 'Business Concept Visualization' },
+        { prompt: orgChartPrompt, placeholder: '{{ORG_CHART_IMAGE}}', caption: 'Proposed Organizational Structure' },
+        { prompt: financialPrompt, placeholder: '{{FINANCIAL_CHART_IMAGE}}', caption: 'Projected Financial Growth' }
+    ];
 
-    let planText = textResponse.text || "";
-
-    // Replace placeholders with Markdown images
-    if (conceptImage) {
-      planText = planText.replace('{{CONCEPT_IMAGE}}', `\n\n![Business Concept Visualization](${conceptImage})\n\n`);
-    } else {
-      planText = planText.replace('{{CONCEPT_IMAGE}}', '');
-    }
-
-    if (orgImage) {
-      planText = planText.replace('{{ORG_CHART_IMAGE}}', `\n\n![Proposed Organizational Structure](${orgImage})\n\n`);
-    } else {
-      planText = planText.replace('{{ORG_CHART_IMAGE}}', '');
-    }
-
-    if (financialImage) {
-      planText = planText.replace('{{FINANCIAL_CHART_IMAGE}}', `\n\n![Projected Financial Growth](${financialImage})\n\n`);
-    } else {
-      planText = planText.replace('{{FINANCIAL_CHART_IMAGE}}', '');
+    for (const req of imageRequests) {
+        // Wait 500ms between image requests to be gentle on the API
+        await delay(500);
+        const base64Image = await generateImage(req.prompt);
+        
+        if (base64Image) {
+            planText = planText.replace(req.placeholder, `\n\n![${req.caption}](${base64Image})\n\n`);
+        } else {
+            planText = planText.replace(req.placeholder, '');
+        }
     }
 
     return planText;
