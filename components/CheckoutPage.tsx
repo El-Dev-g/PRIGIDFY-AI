@@ -15,8 +15,10 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
 
   // Debugging environment variables
   useEffect(() => {
-    const key = process.env.VITE_PAYSTACK_PUBLIC_KEY;
-    const plan = process.env.VITE_PAYSTACK_PLAN_PRO;
+    // Check both VITE_ and non-prefixed versions which are now polyfilled by vite.config.ts
+    const key = process.env.VITE_PAYSTACK_PUBLIC_KEY || process.env.PAYSTACK_PUBLIC_KEY;
+    const plan = process.env.VITE_PAYSTACK_PLAN_PRO || process.env.PAYSTACK_PLAN_PRO;
+    
     console.log("Paystack Config Check:", {
         hasKey: !!key && key.length > 0,
         keyPrefix: key ? key.substring(0, 7) : 'none',
@@ -26,13 +28,13 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
   }, []);
 
   const getPlanDetails = (id: string) => {
-      // Use env var for plan code. 
-      // CRITICAL FIX: Do NOT use a hardcoded fallback like 'PLN_PRO_MONTHLY' if env is missing.
-      // Passing an invalid plan code causes Paystack to throw "Plan not found".
-      // If this is empty, we will process as a one-time payment instead.
-      const envPlanCode = process.env.VITE_PAYSTACK_PLAN_PRO;
+      // Try to get plan code from all possible env variations
+      const envPlanCode = process.env.VITE_PAYSTACK_PLAN_PRO || process.env.PAYSTACK_PLAN_PRO;
       
-      if (id.includes('pro')) return { name: 'Pro Plan', price: '$29.00', currency: 'USD', amount: 2900, planCode: envPlanCode || '' };
+      // Clean the plan code (remove quotes, whitespace)
+      const cleanPlanCode = envPlanCode ? envPlanCode.replace(/['"]/g, '').trim() : '';
+      
+      if (id.includes('pro')) return { name: 'Pro Plan', price: '$29.00', currency: 'USD', amount: 2900, planCode: cleanPlanCode };
       return { name: 'Unknown Plan', price: '$0.00', currency: 'USD', amount: 0, planCode: '' };
   };
 
@@ -49,7 +51,10 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
     if (provider === 'paystack') {
         // @ts-ignore
         if (typeof window.PaystackPop !== 'undefined') {
-            const envKey = process.env.VITE_PAYSTACK_PUBLIC_KEY;
+            const envKey = process.env.VITE_PAYSTACK_PUBLIC_KEY || process.env.PAYSTACK_PUBLIC_KEY;
+            
+            // If no key is found in env, we fallback to a placeholder, 
+            // BUT we must ensure we don't try to use a real plan code with a fake key.
             const paystackKey = envKey || 'pk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'; 
             
             const paystackConfig: any = {
@@ -77,12 +82,20 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
                 }
             };
 
-            // Only add 'plan' to config if it is explicitly defined and not empty.
-            // If excluded, Paystack treats this as a one-time payment, avoiding "Plan not found" errors.
-            if (plan.planCode && plan.planCode.trim() !== '') {
+            // Only add 'plan' to config if:
+            // 1. It is explicitly defined in env
+            // 2. It is not empty
+            // 3. We are NOT using the placeholder/dummy key (which definitely won't have the plan)
+            const isPlaceholderKey = paystackKey === 'pk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
+            
+            if (plan.planCode && plan.planCode !== '' && !isPlaceholderKey) {
                 paystackConfig.plan = plan.planCode;
             } else {
-                console.warn("No Paystack Plan Code found. Proceeding with one-time payment.");
+                if (isPlaceholderKey && plan.planCode) {
+                    console.warn("Using placeholder Paystack key; ignoring Plan Code to prevent errors.");
+                } else if (!plan.planCode) {
+                    console.warn("No Paystack Plan Code found. Proceeding with one-time payment.");
+                }
             }
             
             // @ts-ignore

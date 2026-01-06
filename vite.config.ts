@@ -38,8 +38,11 @@ export default defineConfig(({ mode }) => {
       'process.env.API_KEY': JSON.stringify(apiKey),
       'process.env.VITE_SUPABASE_URL': JSON.stringify(supabaseUrl),
       'process.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(supabaseKey),
+      // Expose Paystack keys with both prefixed and non-prefixed names for compatibility
       'process.env.VITE_PAYSTACK_PUBLIC_KEY': JSON.stringify(paystackPublicKey),
+      'process.env.PAYSTACK_PUBLIC_KEY': JSON.stringify(paystackPublicKey),
       'process.env.VITE_PAYSTACK_PLAN_PRO': JSON.stringify(paystackPlanPro),
+      'process.env.PAYSTACK_PLAN_PRO': JSON.stringify(paystackPlanPro),
     },
   };
 });
