@@ -151,7 +151,7 @@ export const Planner: React.FC<PlannerProps> = ({ user }) => {
   }, []);
 
   const handleRestart = useCallback(async () => {
-      setFormData(initialFormData);
+      setFormData({ ...initialFormData });
       setBusinessPlan('');
       setError(null);
       setCurrentStep(0);

@@ -23,7 +23,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
         hasKey: !!key && key.length > 0,
         keyPrefix: key ? key.substring(0, 7) : 'none',
         hasPlanCode: !!plan && plan.length > 0,
-        planCode: plan
+        planCode: plan || 'PLN_qhqyagpuem14vf4 (Default)'
     });
   }, []);
 
@@ -32,7 +32,12 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
       const envPlanCode = process.env.VITE_PAYSTACK_PLAN_PRO || process.env.PAYSTACK_PLAN_PRO;
       
       // Clean the plan code (remove quotes, whitespace)
-      const cleanPlanCode = envPlanCode ? envPlanCode.replace(/['"]/g, '').trim() : '';
+      let cleanPlanCode = envPlanCode ? envPlanCode.replace(/['"]/g, '').trim() : '';
+
+      // Fallback to the specific plan code provided by the user if env is empty
+      if (!cleanPlanCode) {
+          cleanPlanCode = 'PLN_qhqyagpuem14vf4';
+      }
       
       if (id.includes('pro')) return { name: 'Pro Plan', price: '$29.00', currency: 'USD', amount: 2900, planCode: cleanPlanCode };
       return { name: 'Unknown Plan', price: '$0.00', currency: 'USD', amount: 0, planCode: '' };
@@ -83,7 +88,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
             };
 
             // Only add 'plan' to config if:
-            // 1. It is explicitly defined in env
+            // 1. It is explicitly defined in env OR we have a hardcoded fallback
             // 2. It is not empty
             // 3. We are NOT using the placeholder/dummy key (which definitely won't have the plan)
             const isPlaceholderKey = paystackKey === 'pk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';

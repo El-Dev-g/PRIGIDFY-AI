@@ -7,6 +7,7 @@ import { HistoryView } from './HistoryView';
 import { ProfileSettings } from './ProfileSettings';
 import { BillingPage } from './BillingPage';
 import type { UserProfile } from '../types';
+import { db } from '../services/db';
 
 interface DashboardLayoutProps {
   onLogout: () => void;
@@ -26,6 +27,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     onChangeView
 }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [plannerKey, setPlannerKey] = useState(0);
 
   const getTitle = () => {
     switch(currentView) {
@@ -37,13 +39,25 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     }
   };
 
-  // Map 'planner' to 'new-plan' for Sidebar compatibility if needed, or update Sidebar
-  // Updating Sidebar Props below to match App structure better
+  // Map 'planner' to 'new-plan' for Sidebar compatibility
   const sidebarView = currentView === 'planner' ? 'new-plan' : currentView;
 
-  const handleSidebarChange = (view: 'new-plan' | 'history' | 'profile' | 'billing') => {
-      if (view === 'new-plan') onChangeView('planner');
-      else onChangeView(view);
+  const handleSidebarChange = async (view: 'new-plan' | 'history' | 'profile' | 'billing') => {
+      if (view === 'new-plan') {
+          // Explicitly clear any existing draft to ensure a fresh start
+          await db.plans.saveDraft(user.id, null);
+          
+          if (currentView === 'planner') {
+              // If already on planner, force a remount to reset state
+              setPlannerKey(prev => prev + 1);
+          } else {
+              onChangeView('planner');
+              // Also increment key to ensure fresh mount even if switching views
+              setPlannerKey(prev => prev + 1);
+          }
+      } else {
+          onChangeView(view);
+      }
   };
 
   return (
@@ -65,7 +79,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         />
         
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
-            {currentView === 'planner' && <Planner user={user} />}
+            {currentView === 'planner' && <Planner key={plannerKey} user={user} />}
             {currentView === 'history' && <HistoryView user={user} />}
             {currentView === 'profile' && <ProfileSettings user={user} onUpdate={onPlanUpdate} />}
             {currentView === 'billing' && (
