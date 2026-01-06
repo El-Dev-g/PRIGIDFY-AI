@@ -70,11 +70,51 @@ export const generateNameSuggestions = async (keyword: string): Promise<string[]
   }
 };
 
+export const moderateTestimonial = async (content: string, author: string): Promise<boolean> => {
+    const prompt = `
+      You are an AI Content Moderator for a business platform.
+      Analyze the following testimonial submitted by user "${author}".
+      
+      Testimonial Content: "${content}"
+      
+      Your task is to approve or reject this content.
+      
+      Criteria for APPROVAL (return true):
+      1. It is relevant to business, planning, entrepreneurship, or using software tools.
+      2. It is constructive, positive, or neutral feedback.
+      3. It contains NO profanity, hate speech, spam, or inappropriate language.
+      
+      Criteria for REJECTION (return false):
+      1. Spam, gibberish, or irrelevant text.
+      2. Profanity, insults, or unsafe content.
+      
+      Return JSON ONLY: { "approved": boolean }
+    `;
+
+    try {
+        const ai = getAiClient();
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json"
+            }
+        });
+
+        const json = JSON.parse(response.text || "{}");
+        return json.approved === true;
+    } catch (error) {
+        console.error("Testimonial moderation failed", error);
+        // Default to false if AI fails for safety
+        return false;
+    }
+};
+
 export const generateAutoBlogPost = async (): Promise<{ title: string; excerpt: string; content: string; category: string }> => {
   const topics = [
       "The Future of AI in Entrepreneurship",
       "How PRIGIDFY AI is Changing Business Planning",
-      "Startup Mistakes to Avoid in 2025",
+      "Startup Mistakes to Avoid in 2026",
       "Scaling Your Business with Artificial Intelligence",
       "From Idea to IPO: A Guide",
       "Understanding Financial Projections for Non-CFOs",

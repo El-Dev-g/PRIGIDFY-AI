@@ -17,6 +17,7 @@ import { PrivacyPage } from './components/PrivacyPage';
 import { TermsPage } from './components/TermsPage';
 import { ResultStep } from './components/ResultStep';
 import { CheckoutPage } from './components/CheckoutPage';
+import { TestimonialSubmissionPage } from './components/TestimonialSubmissionPage';
 import { db } from './services/db';
 import type { UserProfile, PlanType } from './types';
 
@@ -38,7 +39,8 @@ export type View =
   | 'privacy'
   | 'terms'
   | 'shared-plan'
-  | 'checkout';
+  | 'checkout'
+  | 'submit-testimonial';
 
 export default function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -59,15 +61,22 @@ export default function App() {
         try {
             // Restore last view from session storage
             const lastView = sessionStorage.getItem('jhaidify_last_view') as View;
+            const lastBlogPostId = sessionStorage.getItem('jhaidify_last_blog_post_id');
             const validDashboardViews = ['planner', 'history', 'profile', 'billing'];
+            const publicViews = [
+              'pricing', 'about', 'blog', 'blog-post', 'careers', 
+              'help', 'api', 'privacy', 'terms', 'submit-testimonial'
+            ];
             
+            if (lastBlogPostId) setSelectedBlogPostId(lastBlogPostId);
+
             const session = await db.auth.getSession();
             
             if (mounted) {
                 if (session) {
                     setUser(session);
-                    // If user is logged in, restore their last dashboard view or default to planner
-                    if (lastView && validDashboardViews.includes(lastView)) {
+                    // If user is logged in, restore their last dashboard view OR public view, otherwise default to planner
+                    if (lastView && (validDashboardViews.includes(lastView) || publicViews.includes(lastView))) {
                          setCurrentView(lastView);
                     } else if (currentView === 'landing' || currentView === 'login' || currentView === 'signup') {
                          setCurrentView('planner');
@@ -75,6 +84,11 @@ export default function App() {
                 } else {
                     // Not logged in
                     setUser(null);
+                    
+                    // RESTORE PUBLIC VIEW if it was the last thing visited
+                    if (lastView && publicViews.includes(lastView)) {
+                        setCurrentView(lastView);
+                    }
                 }
             }
         } catch (e) {
@@ -112,10 +126,14 @@ export default function App() {
 
   // Save current view state
   useEffect(() => {
-     if (user && currentView && currentView !== 'login' && currentView !== 'signup' && currentView !== 'landing') {
+     // Persist view state regardless of login status (except for transient auth pages)
+     if (currentView && currentView !== 'login' && currentView !== 'signup') {
          sessionStorage.setItem('jhaidify_last_view', currentView);
      }
-  }, [currentView, user]);
+     if (selectedBlogPostId) {
+         sessionStorage.setItem('jhaidify_last_blog_post_id', String(selectedBlogPostId));
+     }
+  }, [currentView, selectedBlogPostId]);
 
   // Check for shared plan in URL
   useEffect(() => {
@@ -217,7 +235,9 @@ export default function App() {
   }
 
   const renderView = () => {
-    // Dashboard Views
+    // Dashboard Views (Protected)
+    // Note: User can still be null if they refreshed on a dashboard view but session expired
+    // The check below ensures we render DashboardLayout ONLY if user exists
     if (user && ['planner', 'history', 'profile', 'billing'].includes(currentView)) {
         return (
             <DashboardLayout 
@@ -233,7 +253,7 @@ export default function App() {
     
     switch (currentView) {
       case 'landing':
-        return <LandingPage onGetStarted={() => setCurrentView('pricing')} />;
+        return <LandingPage onGetStarted={() => setCurrentView('pricing')} onNavigate={setCurrentView} />;
       case 'pricing':
         return <PricingPage onSelectPlan={handleSelectPlan} />;
       case 'login':
@@ -268,6 +288,8 @@ export default function App() {
         return <PrivacyPage />;
       case 'terms':
         return <TermsPage />;
+      case 'submit-testimonial':
+        return <TestimonialSubmissionPage onNavigate={setCurrentView} />;
       case 'shared-plan':
         return (
             <div className="max-w-7xl mx-auto px-4 py-12">
@@ -284,14 +306,14 @@ export default function App() {
                 />
             </div>
         );
-      // Fallback for planner/etc if user not logged in
+      // Fallback: If view is protected but user is null, show login
       case 'planner':
       case 'history':
       case 'profile':
       case 'billing':
         return <LoginPage onLogin={handleLogin} onNavigateToSignup={() => setCurrentView('pricing')} />;
       default:
-        return <LandingPage onGetStarted={() => setCurrentView('pricing')} />;
+        return <LandingPage onGetStarted={() => setCurrentView('pricing')} onNavigate={setCurrentView} />;
     }
   };
 

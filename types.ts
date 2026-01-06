@@ -19,6 +19,16 @@ export interface SavedPlan {
   formData: FormData;
 }
 
+export interface Testimonial {
+  id: string;
+  author: string;
+  role: string;
+  content: string;
+  image?: string;
+  approved: boolean;
+  date: string;
+}
+
 export type PlanType = 'starter' | 'pro' | 'enterprise';
 
 export interface UserProfile {

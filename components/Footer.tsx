@@ -41,6 +41,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                 <ul role="list" className="mt-6 space-y-4">
                   <li><button onClick={() => onNavigate('landing')} className="text-sm leading-6 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">Features</button></li>
                   <li><button onClick={() => onNavigate('pricing')} className="text-sm leading-6 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">Pricing</button></li>
+                  <li><button onClick={() => onNavigate('submit-testimonial')} className="text-sm leading-6 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">Submit Review</button></li>
                 </ul>
               </div>
               <div className="mt-10 md:mt-0">

@@ -1,42 +1,38 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { db } from '../services/db';
+import type { Testimonial } from '../types';
 
 interface LandingPageProps {
   onGetStarted: () => void;
+  onNavigate: (view: any) => void;
 }
 
-// Testimonials data
-const testimonials = [
-  {
-    content: "JHAIDIFY AI helped me secure my first round of funding. The structured approach and AI suggestions turned my scattered notes into a professional document.",
-    author: "Alex Rivera",
-    role: "Founder, TechFlow",
-    image: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
-  },
-  {
-    content: "I was dreaded writing a business plan, but this tool made it actually enjoyable. The financial projection breakdown was incredibly helpful.",
-    author: "Sarah Jenkins",
-    role: "Owner, GreenLeaf Cafe",
-    image: "https://images.unsplash.com/photo-1550525811-e5869dd03032?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
-  },
-  {
-    content: "As a solopreneur, I didn't have the budget for a consultant. JHAIDIFY AI acted as my co-founder, filling in the gaps in my strategy.",
-    author: "Marcus Chen",
-    role: "Freelance Designer",
-    image: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
-  },
-];
-
-export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
+export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onNavigate }) => {
   const [email, setEmail] = useState('');
   const [isSubscribed, setIsSubscribed] = useState(false);
+  
+  // Testimonial State
+  const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
+
+  useEffect(() => {
+    // Load approved testimonials
+    const loadTestimonials = async () => {
+        try {
+            const data = await db.testimonials.getAll();
+            setTestimonials(data);
+        } catch (e) {
+            console.error("Failed to load testimonials", e);
+        }
+    };
+    loadTestimonials();
+  }, []); 
 
   const handleSubscribe = (e: React.FormEvent) => {
     e.preventDefault();
     if (email) {
       setIsSubscribed(true);
       setEmail('');
-      // In a real app, send to backend here
     }
   };
 
@@ -202,17 +198,26 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
             <p className="mt-2 text-3xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-4xl">
               Trusted by entrepreneurs worldwide
             </p>
+            <button 
+                onClick={() => onNavigate('submit-testimonial')}
+                className="mt-6 text-sm font-semibold text-indigo-600 hover:text-indigo-500 flex items-center justify-center mx-auto gap-2"
+            >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                Share your story
+            </button>
           </div>
           <div className="mx-auto mt-16 flow-root max-w-2xl sm:mt-20 lg:mx-0 lg:max-w-none">
             <div className="-mt-8 sm:-mx-4 sm:columns-2 sm:text-[0] lg:columns-3">
               {testimonials.map((testimonial) => (
-                <div key={testimonial.author} className="pt-8 sm:inline-block sm:w-full sm:px-4">
+                <div key={testimonial.id} className="pt-8 sm:inline-block sm:w-full sm:px-4">
                   <figure className="rounded-2xl bg-slate-50 dark:bg-slate-800 p-8 text-sm leading-6 border border-slate-100 dark:border-slate-700">
                     <blockquote className="text-slate-900 dark:text-slate-300 italic">
                       <p>“{testimonial.content}”</p>
                     </blockquote>
                     <figcaption className="mt-6 flex items-center gap-x-4">
-                      <img className="h-10 w-10 rounded-full bg-slate-50 border border-slate-200" src={testimonial.image} alt="" />
+                      <img className="h-10 w-10 rounded-full bg-slate-50 border border-slate-200" src={testimonial.image} alt={testimonial.author} />
                       <div>
                         <div className="font-semibold text-slate-900 dark:text-white">{testimonial.author}</div>
                         <div className="text-slate-600 dark:text-slate-400">{testimonial.role}</div>

@@ -1,16 +1,17 @@
 
 import { supabase, isSupabaseConfigured } from './supabaseClient';
-import type { UserProfile, SavedPlan, PlanType } from '../types';
+import type { UserProfile, SavedPlan, PlanType, Testimonial } from '../types';
 
 const KEYS = {
   DRAFT: 'jhaidify_draft',
   USER_SESSION: 'jhaidify_session',
   LOCAL_PLANS: 'jhaidify_local_plans',
   LOCAL_SHARES: 'jhaidify_local_shares',
-  BLOG_POSTS: 'jhaidify_blog_posts',
+  BLOG_POSTS: 'jhaidify_blog_posts_2026',
   LAST_BLOG_GEN: 'jhaidify_last_blog_gen',
   DAILY_BLOG_COUNT: 'jhaidify_daily_blog_count',
-  LAST_RESET_DATE: 'jhaidify_last_reset_date'
+  LAST_RESET_DATE: 'jhaidify_last_reset_date',
+  TESTIMONIALS: 'jhaidify_testimonials'
 };
 
 const mapUser = (sessionUser: any, profile: any): UserProfile => ({
@@ -50,7 +51,7 @@ const SEEDED_POSTS: BlogPost[] = [
     id: 'seed-1',
     title: 'How to Validate Your Business Idea in 48 Hours',
     excerpt: 'Before writing a full plan, ensure your idea has legs. Here is a step-by-step guide to rapid market validation using low-code tools.',
-    date: 'Mar 16, 2025',
+    date: 'Mar 16, 2026',
     category: 'Startup Strategy',
     author: 'PRIGIDFY',
     isAi: true,
@@ -61,7 +62,7 @@ const SEEDED_POSTS: BlogPost[] = [
     id: 'seed-2',
     title: 'The 5 Most Common Mistakes in Financial Projections',
     excerpt: 'Investors spot these errors instantly. Learn how to balance optimism with realism when forecasting your revenue and expenses.',
-    date: 'Mar 10, 2025',
+    date: 'Mar 10, 2026',
     category: 'Finance',
     author: 'PRIGIDFY',
     isAi: true,
@@ -72,12 +73,42 @@ const SEEDED_POSTS: BlogPost[] = [
     id: 'seed-3',
     title: 'Why Storytelling Matters in Your Executive Summary',
     excerpt: 'Facts tell, but stories sell. Discover how to weave a compelling narrative that hooks investors from the very first paragraph.',
-    date: 'Feb 28, 2025',
+    date: 'Feb 28, 2026',
     category: 'Pitching',
     author: 'PRIGIDFY',
     isAi: true,
     image: 'https://images.unsplash.com/photo-1512486130939-2c4f79935e4f?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80',
     content: `<p>Your executive summary is the most important part of your business plan. It's the hook.</p><p>Instead of starting with dry statistics, start with a character—your target customer—and the conflict they face. Show how your solution resolves this conflict and creates a better future.</p>`
+  }
+];
+
+const DEFAULT_TESTIMONIALS: Testimonial[] = [
+  {
+    id: 't1',
+    content: "JHAIDIFY AI helped me secure my first round of funding. The structured approach and AI suggestions turned my scattered notes into a professional document.",
+    author: "Alex Rivera",
+    role: "Founder, TechFlow",
+    image: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
+    approved: true,
+    date: '2025-01-15'
+  },
+  {
+    id: 't2',
+    content: "I was dreaded writing a business plan, but this tool made it actually enjoyable. The financial projection breakdown was incredibly helpful.",
+    author: "Sarah Jenkins",
+    role: "Owner, GreenLeaf Cafe",
+    image: "https://images.unsplash.com/photo-1550525811-e5869dd03032?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
+    approved: true,
+    date: '2025-02-10'
+  },
+  {
+    id: 't3',
+    content: "As a solopreneur, I didn't have the budget for a consultant. JHAIDIFY AI acted as my co-founder, filling in the gaps in my strategy.",
+    author: "Marcus Chen",
+    role: "Freelance Designer",
+    image: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
+    approved: true,
+    date: '2025-03-05'
   }
 ];
 
@@ -385,7 +416,7 @@ export const db = {
           let localPosts: BlogPost[] = JSON.parse(localStorage.getItem(KEYS.BLOG_POSTS) || '[]');
           
           if (localPosts.length === 0) {
-              // Seed the initial state with "AI generated" posts in 2025
+              // Seed the initial state with "AI generated" posts in 2026
               localPosts = SEEDED_POSTS;
               localStorage.setItem(KEYS.BLOG_POSTS, JSON.stringify(localPosts));
           }
@@ -441,5 +472,88 @@ export const db = {
           localStorage.setItem(KEYS.DAILY_BLOG_COUNT, (dailyCount + 1).toString());
           localStorage.setItem(KEYS.LAST_BLOG_GEN, Date.now().toString());
       }
+  },
+
+  testimonials: {
+    async getAll(): Promise<Testimonial[]> {
+      let remoteTests: Testimonial[] = [];
+      
+      if (isSupabaseConfigured) {
+          try {
+              const { data, error } = await supabase
+                .from('testimonials')
+                .select('*')
+                .eq('approved', true)
+                .order('created_at', { ascending: false });
+                
+              if (!error && data) {
+                  remoteTests = data.map((t: any) => ({
+                      id: t.id,
+                      author: t.author,
+                      role: t.role,
+                      content: t.content,
+                      image: t.image,
+                      approved: t.approved,
+                      date: t.created_at || t.date
+                  }));
+              }
+          } catch (e) {
+              console.warn("Error fetching testimonials from DB", e);
+          }
+      }
+
+      // Get local
+      const stored = localStorage.getItem(KEYS.TESTIMONIALS);
+      const localTests: Testimonial[] = stored ? JSON.parse(stored) : [];
+      
+      // Combine: Remote + Local + Default
+      const all = [...remoteTests, ...localTests, ...DEFAULT_TESTIMONIALS];
+      
+      // Filter unique by ID (Map preserves insertion order of last set, but we want arrays)
+      // We use a Map keyed by ID to ensure uniqueness
+      const uniqueMap = new Map();
+      all.forEach(item => {
+          if (!uniqueMap.has(item.id)) {
+              uniqueMap.set(item.id, item);
+          }
+      });
+      
+      return Array.from(uniqueMap.values()).filter(t => t.approved);
+    },
+
+    async submit(data: { name: string; role: string; content: string; approved: boolean }) {
+        const newTestimonial: Testimonial = {
+            id: `t-${Date.now()}`,
+            author: data.name,
+            role: data.role,
+            content: data.content,
+            approved: data.approved,
+            image: `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name)}&background=random&color=fff`,
+            date: new Date().toISOString()
+        };
+
+        // Always save to Local Storage as Backup/Immediate View
+        const stored = localStorage.getItem(KEYS.TESTIMONIALS);
+        const localTests: Testimonial[] = stored ? JSON.parse(stored) : [];
+        localTests.unshift(newTestimonial);
+        localStorage.setItem(KEYS.TESTIMONIALS, JSON.stringify(localTests));
+
+        if (isSupabaseConfigured) {
+            try {
+                // Actually insert into DB
+                // Ensure you have a 'testimonials' table in Supabase
+                await supabase.from('testimonials').insert([{
+                    author: data.name,
+                    role: data.role,
+                    content: data.content,
+                    approved: data.approved,
+                    image: newTestimonial.image,
+                    created_at: newTestimonial.date
+                }]);
+            } catch (e) {
+                console.error("DB Insert failed", e);
+            }
+        }
+    }
   }
 };
