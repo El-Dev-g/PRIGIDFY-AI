@@ -14,17 +14,27 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
   const [customerName, setCustomerName] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  // Hardcoded keys provided by user
-  const PAYSTACK_PUBLIC_KEY = 'pk_test_047ee3eed0b93ddc0bf33256dfaf8b377ddd1c3f';
-  const PAYSTACK_PLAN_CODE = 'PLN_qhqyagpuem14vf4';
-
   // Debugging environment variables
   useEffect(() => {
-    console.log("Paystack Config initialized with provided keys.");
+    console.log("Paystack Config Check:", {
+        hasKey: !!process.env.PAYSTACK_PUBLIC_KEY,
+        planCode: process.env.PAYSTACK_PLAN_PRO || 'Not Set'
+    });
   }, []);
 
   const getPlanDetails = (id: string) => {
-      if (id.includes('pro')) return { name: 'Pro Plan', price: '$29.00', currency: 'USD', amount: 2900, planCode: PAYSTACK_PLAN_CODE };
+      // Use non-prefixed env var as requested
+      const envPlanCode = process.env.PAYSTACK_PLAN_PRO;
+      
+      // Clean the plan code (remove quotes, whitespace) if it exists
+      let cleanPlanCode = envPlanCode ? envPlanCode.replace(/['"]/g, '').trim() : '';
+
+      // Fallback if env is empty (defaulting to the previously known code for continuity if env is missing)
+      if (!cleanPlanCode) {
+          cleanPlanCode = 'PLN_qhqyagpuem14vf4';
+      }
+      
+      if (id.includes('pro')) return { name: 'Pro Plan', price: '$29.00', currency: 'USD', amount: 2900, planCode: cleanPlanCode };
       // Fallback for enterprise or unknown
       return { name: 'Enterprise Plan', price: '$99.00', currency: 'USD', amount: 9900, planCode: '' };
   };
@@ -41,10 +51,11 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
     setIsLoading(true);
 
     if (provider === 'paystack') {
-        const publicKey = PAYSTACK_PUBLIC_KEY;
+        // Accessing the non-prefixed environment variable
+        const publicKey = process.env.PAYSTACK_PUBLIC_KEY;
         
         if (!publicKey) {
-            setError("Configuration Error: Paystack Public Key is missing.");
+            setError("Configuration Error: Paystack Public Key (PAYSTACK_PUBLIC_KEY) is missing.");
             setIsLoading(false);
             return;
         }
