@@ -269,6 +269,75 @@ export const db = {
           return fallback();
       }
     },
+    
+    async updateProfile(userId: string, updates: { name?: string }) {
+      if (isSupabaseConfigured) {
+         try {
+             // 1. Update Profile Table
+             const { error } = await supabase
+                .from('profiles')
+                .update(updates)
+                .eq('id', userId);
+                
+             if (error) throw error;
+
+             // 2. Update Auth Metadata (so getUser returns correct metadata)
+             if (updates.name) {
+                 await supabase.auth.updateUser({
+                     data: { name: updates.name }
+                 });
+             }
+
+             // 3. Return updated user object
+             const { data: { user } } = await supabase.auth.getUser();
+             
+             // Re-fetch profile to ensure consistency
+             const { data: profile } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', userId)
+                .single();
+                
+             return user ? mapUser(user, profile) : null;
+         } catch(e) {
+             console.error("Update profile failed", e);
+             throw e;
+         }
+      }
+
+      // Offline Fallback
+      const user = getMockUser();
+      if (user) {
+          if (updates.name) user.name = updates.name;
+          localStorage.setItem(KEYS.USER_SESSION, JSON.stringify(user));
+          return user;
+      }
+      return null;
+    },
+
+    async updatePassword(email: string, currentPassword: string, newPassword: string) {
+      if (isSupabaseConfigured) {
+        // 1. Verify current password by re-authenticating
+        // This ensures the person trying to change the password actually knows it.
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password: currentPassword
+        });
+
+        if (signInError) throw new Error("Current password is incorrect.");
+
+        // 2. Update to new password
+        const { error: updateError } = await supabase.auth.updateUser({
+          password: newPassword
+        });
+
+        if (updateError) throw updateError;
+        return true;
+      }
+      
+      // Offline mode simulation
+      return true;
+    },
 
     async logout() {
       if (isSupabaseConfigured) {

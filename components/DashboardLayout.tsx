@@ -67,7 +67,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
             {currentView === 'planner' && <Planner user={user} />}
             {currentView === 'history' && <HistoryView user={user} />}
-            {currentView === 'profile' && <ProfileSettings user={user} />}
+            {currentView === 'profile' && <ProfileSettings user={user} onUpdate={onPlanUpdate} />}
             {currentView === 'billing' && (
                 <BillingPage 
                     user={user} 
