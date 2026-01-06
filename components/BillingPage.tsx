@@ -13,19 +13,14 @@ export const BillingPage: React.FC<BillingPageProps> = ({ user, onSelectPlan, on
   const [loadingTier, setLoadingTier] = useState<string | null>(null);
   const [isEditingPayment, setIsEditingPayment] = useState(false);
   const [isSavingPayment, setIsSavingPayment] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Mock Payment State
+  // Mock Payment State - In a real app, this would come from the user's profile/subscription data
   const [paymentMethod, setPaymentMethod] = useState<{brand: string, last4: string, expMonth: string, expYear: string} | null>(
       user.plan !== 'starter' 
       ? { brand: 'Visa', last4: '4242', expMonth: '12', expYear: '25' }
       : null
   );
-
-  const [editForm, setEditForm] = useState({
-      cardNumber: '',
-      expiry: '',
-      cvc: ''
-  });
 
   const tiers = [
     {
@@ -80,37 +75,63 @@ export const BillingPage: React.FC<BillingPageProps> = ({ user, onSelectPlan, on
       }
   };
 
-  const handleEditClick = () => {
-      setEditForm({
-          cardNumber: paymentMethod ? `**** **** **** ${paymentMethod.last4}` : '',
-          expiry: paymentMethod ? `${paymentMethod.expMonth}/${paymentMethod.expYear}` : '',
-          cvc: '***'
-      });
-      setIsEditingPayment(true);
-  };
+  const handlePaystackUpdate = () => {
+      setError(null);
+      const publicKey = process.env.PAYSTACK_PUBLIC_KEY;
+      
+      if (!publicKey) {
+          setError("Configuration Error: Paystack Public Key is missing.");
+          return;
+      }
 
-  const handleSavePayment = async (e: React.FormEvent) => {
-      e.preventDefault();
+      // @ts-ignore
+      if (!window.PaystackPop) {
+          setError("Paystack library not loaded. Please refresh the page.");
+          return;
+      }
+
       setIsSavingPayment(true);
-      
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Basic extraction of mock data
-      const last4 = editForm.cardNumber.replace(/[^0-9]/g, '').slice(-4) || '8888';
-      const expiryParts = editForm.expiry.split('/');
-      const expMonth = expiryParts[0] || '12';
-      const expYear = expiryParts[1] || '28';
-      
-      setPaymentMethod({
-          brand: 'Visa', // We'll just default to Visa for this mock
-          last4: last4,
-          expMonth: expMonth,
-          expYear: expYear
+
+      // @ts-ignore
+      const handler = window.PaystackPop.setup({
+          key: publicKey,
+          email: user.email,
+          amount: 5000, // NGN 50.00 nominal charge for authorization
+          currency: 'NGN',
+          ref: '' + Math.floor((Math.random() * 1000000000) + 1),
+          metadata: {
+              custom_fields: [
+                  {
+                      display_name: "Action",
+                      variable_name: "action",
+                      value: "update_payment_method"
+                  }
+              ]
+          },
+          callback: function(response: any) {
+              console.log("Paystack authorization success:", response);
+              
+              // In a real app, you would send 'response.reference' to your backend.
+              // The backend would verify the transaction using the Secret Key,
+              // then fetch the authorization code and save it to the customer profile.
+              // For this frontend-only demo, we'll simulate a successful update.
+              
+              setPaymentMethod({
+                  brand: 'Paystack Card',
+                  last4: 'Active',
+                  expMonth: '--', 
+                  expYear: '--'
+              });
+              
+              setIsSavingPayment(false);
+              setIsEditingPayment(false);
+          },
+          onClose: function() {
+              setIsSavingPayment(false);
+          }
       });
-      
-      setIsSavingPayment(false);
-      setIsEditingPayment(false);
+
+      handler.openIframe();
   };
 
   return (
@@ -191,89 +212,50 @@ export const BillingPage: React.FC<BillingPageProps> = ({ user, onSelectPlan, on
              </div>
              <div className="p-6">
                 {isEditingPayment ? (
-                    <form onSubmit={handleSavePayment} className="animate-fade-in max-w-2xl">
-                        <div className="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
-                            <div className="sm:col-span-4">
-                                <label htmlFor="card-number" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Card number</label>
-                                <div className="mt-1 relative">
-                                    <input
-                                        type="text"
-                                        name="card-number"
-                                        id="card-number"
-                                        autoComplete="cc-number"
-                                        value={editForm.cardNumber}
-                                        onChange={(e) => setEditForm({...editForm, cardNumber: e.target.value})}
-                                        className="block w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border pl-10"
-                                        placeholder="0000 0000 0000 0000"
-                                    />
-                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                        <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                                        </svg>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="sm:col-span-2">
-                                <label htmlFor="expiration-date" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Expires (MM/YY)</label>
-                                <div className="mt-1">
-                                    <input
-                                        type="text"
-                                        name="expiration-date"
-                                        id="expiration-date"
-                                        autoComplete="cc-exp"
-                                        value={editForm.expiry}
-                                        onChange={(e) => setEditForm({...editForm, expiry: e.target.value})}
-                                        className="block w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"
-                                        placeholder="MM/YY"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="sm:col-span-2">
-                                <label htmlFor="cvc" className="block text-sm font-medium text-slate-700 dark:text-slate-300">CVC</label>
-                                <div className="mt-1">
-                                    <input
-                                        type="text"
-                                        name="cvc"
-                                        id="cvc"
-                                        autoComplete="csc"
-                                        value={editForm.cvc}
-                                        onChange={(e) => setEditForm({...editForm, cvc: e.target.value})}
-                                        className="block w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"
-                                        placeholder="***"
-                                    />
-                                </div>
-                            </div>
+                    <div className="animate-fade-in max-w-xl">
+                        <div className="mb-6 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-lg p-4">
+                            <h4 className="text-sm font-bold text-indigo-900 dark:text-indigo-300 mb-1">Secure Authorization</h4>
+                            <p className="text-sm text-indigo-700 dark:text-indigo-400">
+                                To update your card, we will process a nominal charge of <strong>NGN 50</strong> to authorize your payment method via Paystack. This is standard industry practice.
+                            </p>
                         </div>
+                        
+                        {error && (
+                            <div className="mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-200 px-4 py-3 rounded-md text-sm">
+                                {error}
+                            </div>
+                        )}
 
-                        <div className="mt-6 flex gap-3">
+                        <div className="flex gap-3">
                             <button
-                                type="submit"
+                                onClick={handlePaystackUpdate}
                                 disabled={isSavingPayment}
-                                className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50 flex items-center gap-2"
+                                className="rounded-md bg-[#0ba4db] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#0a93c4] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0ba4db] disabled:opacity-50 flex items-center gap-2"
                             >
-                                {isSavingPayment && (
+                                {isSavingPayment ? (
                                      <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                ) : (
+                                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M4 4h16a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2zm0 4v10h16V8H4z" /></svg>
                                 )}
-                                {isSavingPayment ? 'Saving...' : 'Save Card'}
+                                {isSavingPayment ? 'Processing...' : 'Authorize with Paystack'}
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setIsEditingPayment(false)}
+                                disabled={isSavingPayment}
                                 className="rounded-md bg-white dark:bg-slate-700 px-3 py-2 text-sm font-semibold text-slate-900 dark:text-white shadow-sm ring-1 ring-inset ring-slate-300 dark:ring-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600"
                             >
                                 Cancel
                             </button>
                         </div>
-                    </form>
+                    </div>
                 ) : (
                     <>
                         {!paymentMethod ? (
                              <div className="flex items-center justify-between">
                                 <p className="text-sm text-slate-500 dark:text-slate-400">No payment method on file.</p>
                                 <button 
-                                    onClick={handleEditClick} 
+                                    onClick={() => setIsEditingPayment(true)} 
                                     className="text-sm text-indigo-600 hover:text-indigo-500 font-medium"
                                 >
                                     Add Payment Method
@@ -289,18 +271,18 @@ export const BillingPage: React.FC<BillingPageProps> = ({ user, onSelectPlan, on
                                      </div>
                                      <div>
                                          <p className="text-sm font-medium text-slate-900 dark:text-white">
-                                            {paymentMethod.brand} ending in {paymentMethod.last4}
+                                            {paymentMethod.brand} {paymentMethod.last4 !== 'Active' ? `ending in ${paymentMethod.last4}` : '(Active)'}
                                          </p>
                                          <p className="text-xs text-slate-500 dark:text-slate-400">
-                                            Expires {paymentMethod.expMonth}/{paymentMethod.expYear}
+                                            {paymentMethod.expMonth !== '--' ? `Expires ${paymentMethod.expMonth}/${paymentMethod.expYear}` : 'Securely connected via Paystack'}
                                          </p>
                                      </div>
                                  </div>
                                  <button 
-                                    onClick={handleEditClick} 
+                                    onClick={() => setIsEditingPayment(true)} 
                                     className="text-sm text-indigo-600 hover:text-indigo-500 font-medium"
                                  >
-                                     Edit
+                                     Update
                                  </button>
                              </div>
                         )}
