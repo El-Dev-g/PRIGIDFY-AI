@@ -1,8 +1,9 @@
 
 import React, { useState } from 'react';
+import { db } from '../services/db';
 
 interface LoginPageProps {
-  onLogin: (email: string) => Promise<void>;
+  onLogin: (user: any) => void; // Changed to accept user object or handle internal logic
   onNavigateToSignup: () => void;
 }
 
@@ -17,7 +18,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onNavigateToSignu
     setError(null);
     setIsLoading(true);
 
-    // Basic validation
     if (!email || !password) {
       setError('Please enter both email and password.');
       setIsLoading(false);
@@ -25,9 +25,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onNavigateToSignu
     }
 
     try {
-        await onLogin(email);
-    } catch (err) {
-        setError("Login failed. Please try again.");
+        // Use the specific signInWithPassword method now
+        const user = await db.auth.signInWithPassword(email, password);
+        onLogin(user); // Pass the full user object back up
+    } catch (err: any) {
+        console.error(err);
+        setError(err.message || "Login failed. Check your credentials.");
     } finally {
         setIsLoading(false);
     }
@@ -84,11 +87,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onNavigateToSignu
               <label htmlFor="password" className="block text-sm font-medium leading-6 text-slate-900 dark:text-slate-200">
                 Password
               </label>
-              <div className="text-sm">
-                <a href="#" className="font-semibold text-indigo-600 hover:text-indigo-500">
-                  Forgot password?
-                </a>
-              </div>
             </div>
             <div className="mt-2">
               <input
@@ -125,7 +123,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onNavigateToSignu
         <p className="mt-10 text-center text-sm text-slate-500 dark:text-slate-400">
           Not a member?{' '}
           <button onClick={onNavigateToSignup} className="font-semibold leading-6 text-indigo-600 hover:text-indigo-500">
-            Start a 14 day free trial
+            Sign up now
           </button>
         </p>
       </div>

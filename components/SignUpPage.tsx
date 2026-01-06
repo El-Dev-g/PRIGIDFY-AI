@@ -1,8 +1,9 @@
 
 import React, { useState } from 'react';
+import { db } from '../services/db';
 
 interface SignUpPageProps {
-  onSignup: (name: string, email: string) => Promise<void>;
+  onSignup: (user: any) => void;
   onNavigateToLogin: () => void;
 }
 
@@ -19,7 +20,8 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onSignup, onNavigateToLo
       setError(null);
       
       try {
-          await onSignup(name, email);
+          const user = await db.auth.signup(name, email, password);
+          onSignup(user);
       } catch (err: any) {
           setError(err.message || "Failed to create account");
       } finally {

@@ -86,9 +86,8 @@ export default function App() {
     checkShare();
   }, []);
 
-  const handleLogin = async (email: string) => {
-    const user = await db.auth.login(email);
-    setUser(user);
+  const handleLogin = (loggedInUser: UserProfile) => {
+    setUser(loggedInUser);
     
     if (selectedPlanId && selectedPlanId !== 'tier-starter') {
         setCurrentView('checkout');
@@ -97,9 +96,8 @@ export default function App() {
     }
   };
   
-  const handleSignup = async (name: string, email: string) => {
-    const user = await db.auth.signup(name, email);
-    setUser(user);
+  const handleSignup = (signedUpUser: UserProfile) => {
+    setUser(signedUpUser);
 
     if (selectedPlanId && selectedPlanId !== 'tier-starter') {
         setCurrentView('checkout');
