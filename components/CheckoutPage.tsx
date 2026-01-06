@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { PlanType } from '../types';
 
 interface CheckoutPageProps {
@@ -13,9 +13,23 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerName, setCustomerName] = useState('');
 
+  // Debugging environment variables (will be removed in production build optimization usually, but helpful here)
+  useEffect(() => {
+    const key = process.env.VITE_PAYSTACK_PUBLIC_KEY;
+    const plan = process.env.VITE_PAYSTACK_PLAN_PRO;
+    console.log("Paystack Config Check:", {
+        hasKey: !!key && key.length > 0 && key !== 'pk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+        keyPrefix: key ? key.substring(0, 7) : 'none',
+        hasPlanCode: !!plan && plan.length > 0,
+        planCode: plan
+    });
+  }, []);
+
   const getPlanDetails = (id: string) => {
-      // Use env var for plan code, default to a placeholder if not set
-      const proPlanCode = process.env.VITE_PAYSTACK_PLAN_PRO || 'PLN_PRO_MONTHLY';
+      // Use env var for plan code
+      const envPlanCode = process.env.VITE_PAYSTACK_PLAN_PRO;
+      // Default placeholder if env var is missing or empty string
+      const proPlanCode = envPlanCode || 'PLN_PRO_MONTHLY';
 
       if (id.includes('pro')) return { name: 'Pro Plan', price: '$29.00', currency: 'USD', amount: 2900, planCode: proPlanCode };
       return { name: 'Unknown Plan', price: '$0.00', currency: 'USD', amount: 0, planCode: '' };
@@ -34,8 +48,9 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
     if (provider === 'paystack') {
         // @ts-ignore
         if (typeof window.PaystackPop !== 'undefined') {
-            // Use env var for public key
-            const paystackKey = process.env.VITE_PAYSTACK_PUBLIC_KEY || 'pk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'; 
+            const envKey = process.env.VITE_PAYSTACK_PUBLIC_KEY;
+            // Fallback to test key only if envKey is strictly empty
+            const paystackKey = envKey || 'pk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'; 
             
             // @ts-ignore
             const handler = window.PaystackPop.setup({

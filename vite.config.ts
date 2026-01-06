@@ -8,23 +8,33 @@ export default defineConfig(({ mode }) => {
   // @ts-ignore
   const env = loadEnv(mode, process.cwd(), '');
 
-  // Priorities:
-  // 1. process.env (Vercel System Env / CI)
-  // 2. env object (Loaded from .env files by Vite)
-  // Default to empty string to prevent build errors or undefined replacements
+  // Priorities for loading variables:
+  // 1. process.env.KEY (System/Vercel)
+  // 2. env.KEY (Local .env file via loadEnv)
+  // 3. process.env.NON_PREFIXED_KEY (System/Vercel)
+  // 4. env.NON_PREFIXED_KEY (Local .env file)
 
   const apiKey = process.env.API_KEY || env.API_KEY || '';
 
+  // Supabase
   const supabaseUrl = process.env.VITE_SUPABASE_URL || env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL || '';
   const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
   
-  const paystackPublicKey = process.env.VITE_PAYSTACK_PUBLIC_KEY || env.VITE_PAYSTACK_PUBLIC_KEY || '';
-  const paystackPlanPro = process.env.VITE_PAYSTACK_PLAN_PRO || env.VITE_PAYSTACK_PLAN_PRO || '';
+  // Paystack: Check for VITE_ prefix first, then fallback to non-prefixed
+  const paystackPublicKey = 
+      process.env.VITE_PAYSTACK_PUBLIC_KEY || env.VITE_PAYSTACK_PUBLIC_KEY || 
+      process.env.PAYSTACK_PUBLIC_KEY || env.PAYSTACK_PUBLIC_KEY || 
+      '';
+      
+  const paystackPlanPro = 
+      process.env.VITE_PAYSTACK_PLAN_PRO || env.VITE_PAYSTACK_PLAN_PRO || 
+      process.env.PAYSTACK_PLAN_PRO || env.PAYSTACK_PLAN_PRO || 
+      '';
 
   return {
     plugins: [react()],
     define: {
-      // Expose API keys to the client-side code via process.env polyfill
+      // Expose API keys to the client-side code via process.env replacement
       'process.env.API_KEY': JSON.stringify(apiKey),
       'process.env.VITE_SUPABASE_URL': JSON.stringify(supabaseUrl),
       'process.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(supabaseKey),
