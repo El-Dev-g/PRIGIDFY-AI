@@ -41,7 +41,6 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                 <ul role="list" className="mt-6 space-y-4">
                   <li><button onClick={() => onNavigate('landing')} className="text-sm leading-6 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">Features</button></li>
                   <li><button onClick={() => onNavigate('pricing')} className="text-sm leading-6 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">Pricing</button></li>
-                  <li><button onClick={() => onNavigate('pricing')} className="text-sm leading-6 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">Business Plan Generator</button></li>
                 </ul>
               </div>
               <div className="mt-10 md:mt-0">
@@ -49,7 +48,6 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                 <ul role="list" className="mt-6 space-y-4">
                    <li><button onClick={() => onNavigate('about')} className="text-sm leading-6 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">About</button></li>
                    <li><button onClick={() => onNavigate('blog')} className="text-sm leading-6 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">Blog</button></li>
-                   <li><button onClick={() => onNavigate('careers')} className="text-sm leading-6 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">Careers</button></li>
                 </ul>
               </div>
             </div>
@@ -58,7 +56,6 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                 <h3 className="text-sm font-semibold leading-6 text-slate-900 dark:text-white">Support</h3>
                 <ul role="list" className="mt-6 space-y-4">
                    <li><button onClick={() => onNavigate('help')} className="text-sm leading-6 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">Help Center</button></li>
-                   <li><button onClick={() => onNavigate('api')} className="text-sm leading-6 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">API Documentation</button></li>
                 </ul>
               </div>
               <div className="mt-10 md:mt-0">
