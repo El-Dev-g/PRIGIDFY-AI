@@ -29,14 +29,14 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
       // Clean the plan code (remove quotes, whitespace) if it exists
       let cleanPlanCode = envPlanCode ? envPlanCode.replace(/['"]/g, '').trim() : '';
 
-      // Fallback if env is empty (defaulting to the previously known code for continuity if env is missing)
+      // Fallback if env is empty
       if (!cleanPlanCode) {
-          cleanPlanCode = 'PLN_qhqyagpuem14vf4';
+          cleanPlanCode = ''; // Ensure default is handled or leave blank if using amount
       }
       
-      if (id.includes('pro')) return { name: 'Pro Plan', price: '$29.00', currency: 'USD', amount: 2900, planCode: cleanPlanCode };
+      if (id.includes('pro')) return { name: 'Pro Plan', price: 'GHS 450.00', currency: 'GHS', amount: 450, planCode: cleanPlanCode };
       // Fallback for enterprise or unknown
-      return { name: 'Enterprise Plan', price: '$99.00', currency: 'USD', amount: 9900, planCode: '' };
+      return { name: 'Enterprise Plan', price: 'GHS 1,500.00', currency: 'GHS', amount: 1500, planCode: '' };
   };
 
   const plan = getPlanDetails(planId);
@@ -71,9 +71,9 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
         const handler = window.PaystackPop.setup({
             key: publicKey,
             email: customerEmail,
-            amount: plan.amount * 100, // Amount in kobo/cents
-            plan: plan.planCode, // Use the plan code
-            currency: 'NGN', // Default to NGN
+            amount: plan.amount * 100, // Amount in pesewas (lowest unit)
+            plan: plan.planCode, // Use the plan code if available
+            currency: 'GHS', // Ghana Cedis
             
             ref: '' + Math.floor((Math.random() * 1000000000) + 1), 
             metadata: {

@@ -11,7 +11,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onSelectPlan }) => {
       name: 'Starter',
       id: 'tier-starter',
       href: '#',
-      priceMonthly: '$0',
+      priceMonthly: 'GHS 0',
       description: 'Perfect for exploring your first business idea.',
       features: ['15 Business Plans', 'Basic AI Generation', 'Standard Support', 'Export to Text'],
     },
@@ -19,7 +19,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onSelectPlan }) => {
       name: 'Pro',
       id: 'tier-pro',
       href: '#',
-      priceMonthly: '$29',
+      priceMonthly: 'GHS 450',
       description: 'For serious entrepreneurs ready to launch.',
       features: [
         'Unlimited Business Plans',

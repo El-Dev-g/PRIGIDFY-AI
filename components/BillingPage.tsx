@@ -26,7 +26,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ user, onSelectPlan, on
     {
       name: 'Starter',
       id: 'tier-starter',
-      priceMonthly: '$0',
+      priceMonthly: 'GHS 0',
       description: 'Perfect for exploring your first business idea.',
       features: ['15 Business Plans', 'Basic AI Generation', 'Standard Support', 'Export to Text'],
       value: 'starter'
@@ -34,7 +34,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ user, onSelectPlan, on
     {
       name: 'Pro',
       id: 'tier-pro',
-      priceMonthly: '$29',
+      priceMonthly: 'GHS 450',
       description: 'For serious entrepreneurs ready to launch.',
       features: [
         'Unlimited Business Plans',
@@ -96,8 +96,8 @@ export const BillingPage: React.FC<BillingPageProps> = ({ user, onSelectPlan, on
       const handler = window.PaystackPop.setup({
           key: publicKey,
           email: user.email,
-          amount: 5000, // NGN 50.00 nominal charge for authorization
-          currency: 'NGN',
+          amount: 100, // GHS 1.00 (100 pesewas) nominal charge for authorization
+          currency: 'GHS',
           ref: '' + Math.floor((Math.random() * 1000000000) + 1),
           metadata: {
               custom_fields: [
@@ -216,7 +216,7 @@ export const BillingPage: React.FC<BillingPageProps> = ({ user, onSelectPlan, on
                         <div className="mb-6 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-lg p-4">
                             <h4 className="text-sm font-bold text-indigo-900 dark:text-indigo-300 mb-1">Secure Authorization</h4>
                             <p className="text-sm text-indigo-700 dark:text-indigo-400">
-                                To update your card, we will process a nominal charge of <strong>NGN 50</strong> to authorize your payment method via Paystack. This is standard industry practice.
+                                To update your card, we will process a nominal charge of <strong>GHS 1.00</strong> to authorize your payment method via Paystack. This is standard industry practice.
                             </p>
                         </div>
                         
