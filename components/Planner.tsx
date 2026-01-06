@@ -215,6 +215,7 @@ export const Planner: React.FC<PlannerProps> = ({ user }) => {
     return (
       <InputStep
         key={stepData.id}
+        name={fieldName}
         title={stepData.title || stepData.name}
         description={stepData.description || ''}
         value={formData[fieldName]}

@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { StepWrapper } from './StepWrapper';
 
 interface InputStepProps {
+  name: string;
   title: string;
   description: string;
   value: string;
@@ -14,7 +15,42 @@ interface InputStepProps {
   onGetSuggestions?: (keyword: string) => Promise<string[]>;
 }
 
+// Helper to safely parse JSON or return null
+const safeParse = (str: string) => {
+    try {
+        const parsed = JSON.parse(str);
+        if (parsed && typeof parsed === 'object') return parsed;
+    } catch(e) {}
+    return null;
+};
+
+// Collapsible Card Component
+const CollapsibleCard: React.FC<{ title: string; children: React.ReactNode; defaultOpen?: boolean }> = ({ title, children, defaultOpen = false }) => {
+    const [isOpen, setIsOpen] = useState(defaultOpen);
+
+    return (
+        <div className="border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 overflow-hidden mb-4">
+            <button 
+                type="button"
+                onClick={() => setIsOpen(!isOpen)}
+                className="w-full flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors"
+            >
+                <span className="font-semibold text-slate-800 dark:text-slate-200">{title}</span>
+                <svg className={`w-5 h-5 text-slate-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                </svg>
+            </button>
+            {isOpen && (
+                <div className="p-5 border-t border-slate-200 dark:border-slate-700 animate-fade-in">
+                    {children}
+                </div>
+            )}
+        </div>
+    );
+};
+
 export const InputStep: React.FC<InputStepProps> = ({ 
+  name,
   title, 
   description, 
   value, 
@@ -30,20 +66,34 @@ export const InputStep: React.FC<InputStepProps> = ({
   const [isSuggesting, setIsSuggesting] = useState(false);
   const debouncedSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    // Logic for autosuggest
-    if (!enableSuggestions || !onGetSuggestions) return;
+  // Initialize structured state based on raw string value (if JSON)
+  const [structuredData, setStructuredData] = useState<Record<string, any>>(() => safeParse(value) || {});
 
-    if (value.length > 2) {
-      if (debouncedSearchRef.current) {
-        clearTimeout(debouncedSearchRef.current);
-      }
+  // Update structured data and propagate to parent as JSON string
+  const handleStructuredChange = (key: string, val: any) => {
+      const newState = { ...structuredData, [key]: val };
+      setStructuredData(newState);
+      
+      // Create synthetic event
+      const event = {
+          target: {
+              name: name,
+              value: JSON.stringify(newState)
+          }
+      } as React.ChangeEvent<HTMLTextAreaElement>;
+      onChange(event);
+  };
+
+  useEffect(() => {
+    if (!enableSuggestions || !onGetSuggestions) return;
+    if (name !== 'businessName') return; // Only suggest for names for now
+
+    if (value.length > 2 && !value.startsWith('{')) { // Don't suggest if it looks like JSON
+      if (debouncedSearchRef.current) clearTimeout(debouncedSearchRef.current);
 
       debouncedSearchRef.current = setTimeout(async () => {
         setIsSuggesting(true);
         try {
-          // We only fetch if it doesn't look like they are done typing a sentence
-          // A simple heuristic for names/keywords
           const results = await onGetSuggestions(value);
           setSuggestions(results);
         } catch (e) {
@@ -51,7 +101,7 @@ export const InputStep: React.FC<InputStepProps> = ({
         } finally {
           setIsSuggesting(false);
         }
-      }, 1000); // Wait 1s after typing stops
+      }, 1000);
     } else {
         setSuggestions([]);
     }
@@ -59,21 +109,205 @@ export const InputStep: React.FC<InputStepProps> = ({
     return () => {
         if (debouncedSearchRef.current) clearTimeout(debouncedSearchRef.current);
     }
-  }, [value, enableSuggestions, onGetSuggestions]);
+  }, [value, enableSuggestions, onGetSuggestions, name]);
 
   const handleSuggestionClick = (suggestion: string) => {
-    // Create a synthetic event to pass to parent onChange
     const event = {
-      target: {
-        value: suggestion,
-        name: '' // The parent component assigns the correct name in onChange wrapper
-      }
+      target: { value: suggestion, name: '' }
     } as unknown as React.ChangeEvent<HTMLInputElement>;
     onChange(event);
-    setSuggestions([]); // Clear suggestions after selection
+    setSuggestions([]);
   };
 
-  const isShortInput = enableSuggestions; // Assuming name input is short
+  // Render Logic based on Field Name
+  const isStructuredField = ['targetAudience', 'marketingSales', 'operations', 'financials'].includes(name);
+
+  const renderStructuredInputs = () => {
+      if (name === 'targetAudience') {
+          return (
+              <div className="space-y-2">
+                 <CollapsibleCard title="Primary Audience" defaultOpen={true}>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Who are your ideal customers?</label>
+                    <textarea
+                        className="w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 p-3 shadow-sm focus:ring-indigo-500"
+                        rows={4}
+                        placeholder="e.g., Busy urban professionals..."
+                        value={structuredData.description || ''}
+                        onChange={(e) => handleStructuredChange('description', e.target.value)}
+                    />
+                 </CollapsibleCard>
+
+                 <CollapsibleCard title="Demographics">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Select all that apply</label>
+                    <div className="grid grid-cols-2 gap-3">
+                        {['Gen Z (18-24)', 'Millennials (25-40)', 'Gen X (41-56)', 'Boomers (57+)', 'Male', 'Female', 'Urban', 'Suburban', 'High Income', 'Budget Conscious'].map(opt => (
+                            <label key={opt} className="flex items-center space-x-2 p-2 rounded hover:bg-slate-50 dark:hover:bg-slate-800 border border-transparent hover:border-slate-200 dark:hover:border-slate-700 cursor-pointer">
+                                <input 
+                                    type="checkbox" 
+                                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                    checked={(structuredData.demographics || []).includes(opt)}
+                                    onChange={(e) => {
+                                        const current = structuredData.demographics || [];
+                                        const updated = e.target.checked ? [...current, opt] : current.filter((x: string) => x !== opt);
+                                        handleStructuredChange('demographics', updated);
+                                    }}
+                                />
+                                <span className="text-sm text-slate-700 dark:text-slate-300">{opt}</span>
+                            </label>
+                        ))}
+                    </div>
+                 </CollapsibleCard>
+
+                 <CollapsibleCard title="Pain Points">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">What problems do they face?</label>
+                    <textarea
+                        className="w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 p-3 shadow-sm focus:ring-indigo-500"
+                        rows={3}
+                        placeholder="e.g., Lack of time, expensive alternatives..."
+                        value={structuredData.painPoints || ''}
+                        onChange={(e) => handleStructuredChange('painPoints', e.target.value)}
+                    />
+                 </CollapsibleCard>
+              </div>
+          );
+      }
+
+      if (name === 'marketingSales') {
+          return (
+              <div className="space-y-2">
+                 <CollapsibleCard title="Marketing Channels" defaultOpen={true}>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">How will you reach customers?</label>
+                    <div className="grid grid-cols-2 gap-3">
+                        {['Social Media', 'SEO / Content', 'Paid Ads', 'Email Marketing', 'Influencers', 'Events', 'Cold Outreach', 'Referrals'].map(opt => (
+                            <label key={opt} className="flex items-center space-x-2 p-2 rounded hover:bg-slate-50 dark:hover:bg-slate-800 border border-transparent hover:border-slate-200 dark:hover:border-slate-700 cursor-pointer">
+                                <input 
+                                    type="checkbox" 
+                                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                    checked={(structuredData.channels || []).includes(opt)}
+                                    onChange={(e) => {
+                                        const current = structuredData.channels || [];
+                                        const updated = e.target.checked ? [...current, opt] : current.filter((x: string) => x !== opt);
+                                        handleStructuredChange('channels', updated);
+                                    }}
+                                />
+                                <span className="text-sm text-slate-700 dark:text-slate-300">{opt}</span>
+                            </label>
+                        ))}
+                    </div>
+                 </CollapsibleCard>
+
+                 <CollapsibleCard title="Sales Strategy">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">How will you convert leads?</label>
+                    <textarea
+                        className="w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 p-3 shadow-sm focus:ring-indigo-500"
+                        rows={3}
+                        placeholder="e.g., Free trial, Direct sales team, Online checkout..."
+                        value={structuredData.salesStrategy || ''}
+                        onChange={(e) => handleStructuredChange('salesStrategy', e.target.value)}
+                    />
+                 </CollapsibleCard>
+
+                 <CollapsibleCard title="Pricing Model">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">What is your pricing structure?</label>
+                    <input
+                        type="text"
+                        className="w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 p-3 shadow-sm focus:ring-indigo-500"
+                        placeholder="e.g., $29/month subscription"
+                        value={structuredData.pricing || ''}
+                        onChange={(e) => handleStructuredChange('pricing', e.target.value)}
+                    />
+                 </CollapsibleCard>
+              </div>
+          );
+      }
+
+      if (name === 'operations') {
+          return (
+              <div className="space-y-2">
+                 <CollapsibleCard title="Key Activities" defaultOpen={true}>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">What are your day-to-day processes?</label>
+                    <textarea
+                        className="w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 p-3 shadow-sm focus:ring-indigo-500"
+                        rows={4}
+                        placeholder="e.g., Product development, customer support..."
+                        value={structuredData.activities || ''}
+                        onChange={(e) => handleStructuredChange('activities', e.target.value)}
+                    />
+                 </CollapsibleCard>
+                 
+                 <CollapsibleCard title="Suppliers & Tools">
+                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Key partners or software?</label>
+                     <input
+                        type="text"
+                        className="w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 p-3 shadow-sm focus:ring-indigo-500"
+                        placeholder="e.g., AWS, Stripe, Local Wholesaler"
+                        value={structuredData.suppliers || ''}
+                        onChange={(e) => handleStructuredChange('suppliers', e.target.value)}
+                    />
+                 </CollapsibleCard>
+
+                 <CollapsibleCard title="Team & Staffing">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Who is running the business?</label>
+                    <textarea
+                        className="w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 p-3 shadow-sm focus:ring-indigo-500"
+                        rows={2}
+                        placeholder="e.g., 2 Co-founders, 1 Developer..."
+                        value={structuredData.team || ''}
+                        onChange={(e) => handleStructuredChange('team', e.target.value)}
+                    />
+                 </CollapsibleCard>
+              </div>
+          );
+      }
+
+      if (name === 'financials') {
+          return (
+              <div className="space-y-2">
+                 <CollapsibleCard title="Revenue Model" defaultOpen={true}>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">How do you make money?</label>
+                    <select
+                        className="w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 p-3 shadow-sm focus:ring-indigo-500"
+                        value={structuredData.revenueModel || ''}
+                        onChange={(e) => handleStructuredChange('revenueModel', e.target.value)}
+                    >
+                        <option value="">Select a model...</option>
+                        <option value="One-time Purchase">One-time Purchase</option>
+                        <option value="Subscription / SaaS">Subscription / SaaS</option>
+                        <option value="Freemium">Freemium</option>
+                        <option value="Advertising">Advertising</option>
+                        <option value="Commission">Commission / Marketplace</option>
+                        <option value="Service Fee">Service Fee</option>
+                    </select>
+                 </CollapsibleCard>
+
+                 <CollapsibleCard title="Costs & Expenses">
+                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Major cost drivers?</label>
+                     <textarea
+                        className="w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 p-3 shadow-sm focus:ring-indigo-500"
+                        rows={3}
+                        placeholder="e.g., Server costs, office rent, salaries..."
+                        value={structuredData.expenses || ''}
+                        onChange={(e) => handleStructuredChange('expenses', e.target.value)}
+                    />
+                 </CollapsibleCard>
+
+                 <CollapsibleCard title="Funding">
+                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Capital requirements?</label>
+                     <input
+                        type="text"
+                        className="w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 p-3 shadow-sm focus:ring-indigo-500"
+                        placeholder="e.g., Bootstrapped, Seeking $500k Seed"
+                        value={structuredData.funding || ''}
+                        onChange={(e) => handleStructuredChange('funding', e.target.value)}
+                    />
+                 </CollapsibleCard>
+              </div>
+          );
+      }
+      return null;
+  };
+
+  const isShortInput = name === 'businessName'; 
 
   return (
     <StepWrapper>
@@ -86,12 +320,21 @@ export const InputStep: React.FC<InputStepProps> = ({
           </div>
           
           <div className="relative flex-grow flex flex-col group">
-            <div className={`
-                absolute inset-0 rounded-2xl transition duration-300 pointer-events-none
-                ${isShortInput ? 'bg-gradient-to-r from-indigo-500/10 to-purple-500/10' : 'bg-transparent'}
-            `}></div>
+            {/* Background Glow for Text Areas */}
+            {!isStructuredField && (
+                 <div className={`
+                    absolute inset-0 rounded-2xl transition duration-300 pointer-events-none
+                    ${isShortInput ? 'bg-gradient-to-r from-indigo-500/10 to-purple-500/10' : 'bg-transparent'}
+                `}></div>
+            )}
 
-            {isShortInput ? (
+            {isStructuredField ? (
+                // Structured Form Rendering
+                <div className="relative z-10">
+                    {renderStructuredInputs()}
+                </div>
+            ) : isShortInput ? (
+                // Simple Short Input (Name)
                 <div className="relative">
                      <input
                         type="text"
@@ -111,6 +354,7 @@ export const InputStep: React.FC<InputStepProps> = ({
                     )}
                 </div>
             ) : (
+                // Standard Text Area Fallback (Business Idea, etc.)
                 <textarea
                   rows={14}
                   className="block w-full rounded-2xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-lg shadow-slate-200/50 dark:shadow-black/20 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 text-lg leading-relaxed p-6 resize-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600"
@@ -120,11 +364,14 @@ export const InputStep: React.FC<InputStepProps> = ({
                 ></textarea>
             )}
             
-            <div className="mt-2 flex justify-end">
-                 <span className={`text-xs font-medium px-2 py-1 rounded-md transition-colors ${value.length > 0 ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400' : 'text-slate-400'}`}>
-                    {value.length} characters
-                 </span>
-            </div>
+            {/* Character Count (Only for simple text) */}
+            {!isStructuredField && (
+                <div className="mt-2 flex justify-end">
+                     <span className={`text-xs font-medium px-2 py-1 rounded-md transition-colors ${value.length > 0 ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400' : 'text-slate-400'}`}>
+                        {value.length} characters
+                     </span>
+                </div>
+            )}
 
             {/* Suggestions Area */}
             {enableSuggestions && suggestions.length > 0 && (
