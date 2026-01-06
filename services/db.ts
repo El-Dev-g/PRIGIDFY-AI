@@ -35,11 +35,19 @@ export const db = {
 
       try {
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
         if (sessionError) {
              console.warn("Session check failed, using mock if available:", sessionError.message);
              return getMockUser();
         }
-        if (!session?.user) return null;
+        
+        if (!session?.user) {
+            // If Supabase has no session, check if we have an offline mock user 
+            // This ensures users who were using Offline mode don't get locked out if config appears
+            // but they haven't logged in via Supabase yet.
+            const mock = getMockUser();
+            return mock; 
+        }
 
         const { data: profile, error: profileError } = await supabase
             .from('profiles')
@@ -48,7 +56,6 @@ export const db = {
             .single();
             
         if (profileError) {
-             // If table missing, we return basic user info so app doesn't crash
              console.warn("Profile fetch failed:", profileError.message);
              return mapUser(session.user, { name: session.user.user_metadata?.name });
         }
@@ -57,6 +64,14 @@ export const db = {
       } catch (e) {
         return getMockUser();
       }
+    },
+
+    // New method to listen to auth changes
+    onAuthStateChange(callback: (event: string, session: any) => void) {
+        if (isSupabaseConfigured) {
+            return supabase.auth.onAuthStateChange(callback);
+        }
+        return { data: { subscription: { unsubscribe: () => {} } } };
     },
 
     async login(email: string) {
@@ -83,7 +98,6 @@ export const db = {
                 return mapUser(data.user, profile);
             }
         } catch (e: any) {
-            // Only fallback to mock if connection error, not invalid auth
             if (e.message !== "Invalid login credentials") {
                  console.warn("Supabase Login failed, falling back to offline mode.");
             } else {
@@ -92,7 +106,6 @@ export const db = {
         }
       }
 
-      // Offline Mock Fallback
       const mockUser: UserProfile = {
           id: 'offline-user-' + email.replace(/[^a-zA-Z0-9]/g, ''),
           email: email,
@@ -188,7 +201,6 @@ export const db = {
           localStorage.setItem(KEYS.LOCAL_PLANS, JSON.stringify(plans));
       };
 
-      // If offline user or config missing, use fallback without error
       if (!isSupabaseConfigured || !isUUID(plan.userId)) {
           return fallback();
       }
@@ -208,21 +220,16 @@ export const db = {
           
           if (error) {
               console.error("Supabase Plan Insert Failed:", error);
-              // Check for table missing
               if (error.code === '42P01') { 
-                  alert("Error: Database tables missing. Please run the setup SQL.");
                   return fallback();
               }
-              // Check for RLS policy violation
               if (error.code === '42501') {
-                   alert("Error: Permission denied. Please check RLS policies.");
                    return fallback();
               }
               throw error;
           }
       } catch (e) {
           console.error("Critical error saving plan:", e);
-          // We intentionally throw here so the UI knows something went wrong if we expected it to work
           throw e; 
       }
     },
@@ -245,7 +252,6 @@ export const db = {
             .order('created_at', { ascending: false });
             
           if (error) {
-               console.warn("Fetch plans error:", error.message);
                return fallback();
           }
 

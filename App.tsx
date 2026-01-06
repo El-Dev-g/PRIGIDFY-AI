@@ -26,6 +26,9 @@ export type View =
   | 'login' 
   | 'signup' 
   | 'planner'
+  | 'history'
+  | 'profile'
+  | 'billing'
   | 'about'
   | 'blog'
   | 'blog-post'
@@ -48,23 +51,71 @@ export default function App() {
   const [sharedPlanContent, setSharedPlanContent] = useState<string>('');
   const [currentShareId, setCurrentShareId] = useState<string | null>(null);
 
-  // Initialize Auth
+  // Initialize Auth & View Persistence
   useEffect(() => {
+    let mounted = true;
+
     const initAuth = async () => {
         try {
+            // Restore last view from session storage
+            const lastView = sessionStorage.getItem('jhaidify_last_view') as View;
+            const validDashboardViews = ['planner', 'history', 'profile', 'billing'];
+            
             const session = await db.auth.getSession();
-            if (session) {
-                setUser(session);
-                setCurrentView('planner');
+            
+            if (mounted) {
+                if (session) {
+                    setUser(session);
+                    // If user is logged in, restore their last dashboard view or default to planner
+                    if (lastView && validDashboardViews.includes(lastView)) {
+                         setCurrentView(lastView);
+                    } else if (currentView === 'landing' || currentView === 'login' || currentView === 'signup') {
+                         setCurrentView('planner');
+                    }
+                } else {
+                    // Not logged in
+                    setUser(null);
+                }
             }
         } catch (e) {
             console.error("Auth init error", e);
         } finally {
-            setIsLoadingUser(false);
+            if (mounted) setIsLoadingUser(false);
         }
     };
     initAuth();
+
+    // Setup Auth Listener
+    const { data: subscription } = db.auth.onAuthStateChange(async (event, session) => {
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+             // Re-fetch full profile data via db abstraction
+             const fullProfile = await db.auth.getSession();
+             if (mounted && fullProfile) {
+                 setUser(fullProfile);
+                 if (currentView === 'login' || currentView === 'signup') {
+                     setCurrentView('planner');
+                 }
+             }
+        } else if (event === 'SIGNED_OUT') {
+             if (mounted) {
+                 setUser(null);
+                 setCurrentView('landing');
+             }
+        }
+    });
+
+    return () => {
+        mounted = false;
+        subscription?.subscription.unsubscribe();
+    };
   }, []);
+
+  // Save current view state
+  useEffect(() => {
+     if (user && currentView && currentView !== 'login' && currentView !== 'signup' && currentView !== 'landing') {
+         sessionStorage.setItem('jhaidify_last_view', currentView);
+     }
+  }, [currentView, user]);
 
   // Check for shared plan in URL
   useEffect(() => {
@@ -111,6 +162,7 @@ export default function App() {
     setUser(null);
     setCurrentView('landing');
     setSelectedPlanId(null);
+    sessionStorage.removeItem('jhaidify_last_view');
   };
 
   const handleNavigateToPost = (id: number) => {
@@ -127,8 +179,6 @@ export default function App() {
       }
       
       if (planId === 'tier-starter') {
-           // Downgrade logic if from Pricing Page (logged out)
-           // If logged in, this usually comes from Dashboard now
            setCurrentView('planner');
       } else {
           setCurrentView('checkout');
@@ -167,13 +217,16 @@ export default function App() {
   }
 
   const renderView = () => {
-    if (user && currentView === 'planner') {
+    // Dashboard Views
+    if (user && ['planner', 'history', 'profile', 'billing'].includes(currentView)) {
         return (
             <DashboardLayout 
                 user={user} 
                 onLogout={handleLogout} 
                 onSelectPlan={handleSelectPlan}
                 onPlanUpdate={handleUserUpdate}
+                currentView={currentView as any}
+                onChangeView={(view) => setCurrentView(view)}
             />
         );
     }
@@ -231,8 +284,11 @@ export default function App() {
                 />
             </div>
         );
+      // Fallback for planner/etc if user not logged in
       case 'planner':
-         // Fallback if trying to access planner without auth
+      case 'history':
+      case 'profile':
+      case 'billing':
         return <LoginPage onLogin={handleLogin} onNavigateToSignup={() => setCurrentView('pricing')} />;
       default:
         return <LandingPage onGetStarted={() => setCurrentView('pricing')} />;
@@ -241,6 +297,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans text-slate-900 dark:text-white flex flex-col">
+       {/* Only show public navbar if we aren't in dashboard mode or checkout */}
        {!user && currentView !== 'checkout' && (
          <Navbar
            currentView={currentView}
@@ -250,6 +307,7 @@ export default function App() {
        <main className="flex-grow flex flex-col">
         {renderView()}
        </main>
+       {/* Hide footer in dashboard or checkout */}
        {!user && currentView !== 'login' && currentView !== 'signup' && currentView !== 'checkout' && (
          <Footer onNavigate={setCurrentView} />
        )}
