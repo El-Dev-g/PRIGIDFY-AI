@@ -87,35 +87,39 @@ export default function App() {
             let path = window.location.pathname.replace(/^\/|\/$/g, '');
             if (path === '') path = 'landing';
             
+            // Check if path is a valid view
             const initialViewFromPath = (validDashboardViews.includes(path) || publicViews.includes(path)) 
                 ? (path as View) 
                 : null;
 
             if (lastBlogPostId) setSelectedBlogPostId(lastBlogPostId);
 
+            // Set initial view based on URL or Session Storage immediately
+            // This prevents "flicker" to landing page while auth loads
+            if (initialViewFromPath) {
+                setCurrentView(initialViewFromPath);
+            } else if (lastView && (validDashboardViews.includes(lastView) || publicViews.includes(lastView))) {
+                setCurrentView(lastView);
+            }
+
             const session = await db.auth.getSession();
             
             if (mounted) {
                 if (session) {
                     setUser(session);
-                    // Priority: 1. URL Path (if valid), 2. Last Session View, 3. Default Planner
-                    if (initialViewFromPath && (validDashboardViews.includes(initialViewFromPath) || publicViews.includes(initialViewFromPath))) {
-                        setCurrentView(initialViewFromPath);
-                    } else if (lastView && (validDashboardViews.includes(lastView) || publicViews.includes(lastView))) {
-                         setCurrentView(lastView);
-                    } else if (currentView === 'landing' || currentView === 'login' || currentView === 'signup') {
-                         setCurrentView('planner');
+                    // If user is logged in, and current view is login/signup/landing, default to planner
+                    // Otherwise keep the restored view (e.g. they refreshed on /billing)
+                    if (currentView === 'landing' || currentView === 'login' || currentView === 'signup') {
+                        // Only redirect if we didn't just set it from URL
+                         if (!initialViewFromPath || initialViewFromPath === 'landing') {
+                             setCurrentView('planner');
+                         }
                     }
                 } else {
                     // Not logged in
                     setUser(null);
-                    
-                    // Priority: 1. URL Path (Public only), 2. Last Session View (Public only)
-                    if (initialViewFromPath && publicViews.includes(initialViewFromPath)) {
-                         setCurrentView(initialViewFromPath);
-                    } else if (lastView && publicViews.includes(lastView)) {
-                        setCurrentView(lastView);
-                    }
+                    // View remains what we set it to (e.g. 'planner'). 
+                    // The render logic will handle showing the Login component for protected views.
                 }
             }
         } catch (e) {
@@ -145,8 +149,6 @@ export default function App() {
                  const isLoginView = currentViewRef.current === 'login';
                  const hasPendingData = !!pendingCheckoutDataRef.current;
 
-                 // Don't auto-redirect if we are in the middle of a signup flow (pendingCheckoutData)
-                 // The handleSignup function will handle the redirection.
                  if (isLoginView && !hasPendingData) {
                      setCurrentView('planner');
                  }
@@ -154,7 +156,12 @@ export default function App() {
         } else if (event === 'SIGNED_OUT') {
              if (mounted) {
                  setUser(null);
-                 setCurrentView('landing');
+                 // Only redirect to landing if we are currently on a protected route
+                 // Otherwise stay (e.g. if on Pricing)
+                 const validDashboardViews = ['planner', 'history', 'profile', 'billing'];
+                 if (validDashboardViews.includes(currentViewRef.current)) {
+                     setCurrentView('landing');
+                 }
              }
         }
     });
@@ -163,7 +170,7 @@ export default function App() {
         mounted = false;
         subscription?.subscription.unsubscribe();
     };
-  }, []); // Run once to set up listener, use refs for dynamic state checks
+  }, []); // Run once to set up listener
 
   // Save current view state
   useEffect(() => {
@@ -448,7 +455,7 @@ export default function App() {
                 />
             </div>
         );
-      // Fallback: If view is protected but user is null, show login
+      // Fallback: If view is protected but user is null, show login instead of landing
       case 'planner':
       case 'history':
       case 'profile':

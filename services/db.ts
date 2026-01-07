@@ -118,13 +118,8 @@ export const db = {
       if (!isSupabaseConfigured) return getMockUser();
 
       try {
-        // Add a timeout race condition to prevent indefinite hanging
-        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000));
-        
-        const sessionPromise = supabase.auth.getSession();
-        const result: any = await Promise.race([sessionPromise, timeout]);
-        
-        const { data: { session }, error: sessionError } = result;
+        // Direct call without arbitrary timeout to avoid race conditions on slow networks
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError) {
              console.warn("Session check failed, using mock if available:", sessionError.message);
@@ -132,11 +127,12 @@ export const db = {
         }
         
         if (!session?.user) {
-            const mock = getMockUser();
-            return mock; 
+            // Check for mock user in local storage as fallback even if supabase configured
+            // This handles the transition case or mixed usage
+            return getMockUser(); 
         }
 
-        // Try to get profile, but don't block if it fails/timeouts
+        // Try to get profile, but don't block heavily if it fails
         let profile = { name: session.user.user_metadata?.name };
         try {
             const { data, error } = await supabase
@@ -151,7 +147,7 @@ export const db = {
 
         return mapUser(session.user, profile);
       } catch (e) {
-        console.warn("Auth initialization failed or timed out, using offline mode.");
+        console.warn("Auth initialization failed, using offline mode.", e);
         return getMockUser();
       }
     },
@@ -160,6 +156,7 @@ export const db = {
         if (isSupabaseConfigured) {
             return supabase.auth.onAuthStateChange(callback);
         }
+        // Mock subscription for offline
         return { data: { subscription: { unsubscribe: () => {} } } };
     },
 
@@ -187,11 +184,17 @@ export const db = {
                 return mapUser(data.user, profile);
             }
         } catch (e: any) {
-            console.warn("Supabase Login failed, falling back to offline mode for demo purposes.", e.message);
-            // We allow fallback even on error for this demo application to ensure usability
+            console.warn("Supabase Login failed:", e.message);
+            // Re-throw to inform user in UI, don't silently fallback unless network error
+            if (e.message?.includes('fetch') || e.message?.includes('connection')) {
+                 console.warn("Network error, trying offline fallback");
+            } else {
+                 throw e;
+            }
         }
       }
 
+      // Offline/Mock simulation
       const mockUser: UserProfile = {
           id: 'offline-user-' + email.replace(/[^a-zA-Z0-9]/g, ''),
           email: email,
@@ -214,9 +217,10 @@ export const db = {
             if (error) throw error;
 
             if (data.user) {
+                // Attempt to create profile, ignore error if triggers handle it
                 await supabase.from('profiles').insert([
                     { id: data.user.id, name, email, plan: 'starter' }
-                ]).catch(err => console.warn("Profile creation failed (check RLS/Tables):", err.message));
+                ]).catch(err => console.warn("Profile creation warn:", err.message));
 
                 return {
                     id: data.user.id,
@@ -226,7 +230,8 @@ export const db = {
                 };
             }
          } catch (e) {
-             console.warn("Signup failed, falling back to offline:", e);
+             console.warn("Signup failed:", e);
+             throw e;
          }
       }
 
@@ -266,12 +271,13 @@ export const db = {
           const { data: { user } } = await supabase.auth.getUser();
           return user ? mapUser(user, data) : null;
       } catch (e) {
+          console.error("Update plan failed, falling back local", e);
           return fallback();
       }
     },
     
     async updateProfile(userId: string, updates: Record<string, any>) {
-      if (isSupabaseConfigured) {
+      if (isSupabaseConfigured && isUUID(userId)) {
          try {
              // 1. Update Profile Table
              const { error } = await supabase
@@ -318,7 +324,6 @@ export const db = {
     async updatePassword(email: string, currentPassword: string, newPassword: string) {
       if (isSupabaseConfigured) {
         // 1. Verify current password by re-authenticating
-        // This ensures the person trying to change the password actually knows it.
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email,
           password: currentPassword
@@ -373,6 +378,7 @@ export const db = {
           const { error } = await supabase.from('plans').insert([dbPlan]);
           
           if (error) {
+              console.warn("DB Plan create failed, fallback local", error);
               return fallback();
           }
       } catch (e) {
@@ -663,7 +669,7 @@ export const db = {
       // Combine: Remote + Local + Default
       const all = [...remoteTests, ...localTests, ...DEFAULT_TESTIMONIALS];
       
-      // Filter unique by ID (Map preserves insertion order of last set, but we want arrays)
+      // Filter unique by ID
       const uniqueMap = new Map();
       all.forEach(item => {
           if (!uniqueMap.has(item.id)) {
