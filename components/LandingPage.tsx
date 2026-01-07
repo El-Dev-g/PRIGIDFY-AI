@@ -57,7 +57,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onNaviga
         <div className="mx-auto max-w-7xl px-6 pb-24 pt-10 sm:pb-32 lg:flex lg:px-8 lg:py-40">
           <div className="mx-auto max-w-2xl lg:mx-0 lg:max-w-xl lg:flex-shrink-0 lg:pt-8">
             <div className="mt-24 sm:mt-32 lg:mt-16">
-              <a href="#" className="inline-flex space-x-6">
+              <div className="inline-flex space-x-6 cursor-default">
                 <span className="rounded-full bg-indigo-600/10 px-3 py-1 text-sm font-semibold leading-6 text-indigo-600 ring-1 ring-inset ring-indigo-600/10">
                   New v2.0
                 </span>
@@ -67,7 +67,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onNaviga
                     <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
                   </svg>
                 </span>
-              </a>
+              </div>
             </div>
             <h1 className="mt-10 text-4xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-6xl">
               The AI Co-Founder for Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-purple-600">Business Plan</span>
@@ -82,9 +82,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onNaviga
               >
                 Start Building for Free
               </button>
-              <a href="#features" className="text-sm font-semibold leading-6 text-slate-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+              <span className="text-sm font-semibold leading-6 text-slate-900 dark:text-white cursor-default">
                 View Sample Plan <span aria-hidden="true">→</span>
-              </a>
+              </span>
             </div>
           </div>
           
