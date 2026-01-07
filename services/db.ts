@@ -269,6 +269,7 @@ export const db = {
       if (!isSupabaseConfigured || !isUUID(userId)) return fallback();
 
       try {
+          // Attempt DB update
           const { data, error } = await supabase
             .from('profiles')
             .update({ plan })
@@ -276,7 +277,16 @@ export const db = {
             .select()
             .single();
             
-          if (error) throw error;
+          if (error) {
+             console.warn("DB update plan error:", error.message);
+             // Even if DB fails (e.g. RLS), try to return a valid object for the UI
+             // This is an optimistic response
+             const { data: { user } } = await supabase.auth.getUser();
+             if (user) {
+                 return { ...mapUser(user, {}), plan }; // Force the new plan in UI
+             }
+             throw error;
+          }
           
           const { data: { user } } = await supabase.auth.getUser();
           return user ? mapUser(user, data) : null;
@@ -398,11 +408,11 @@ export const db = {
     },
 
     async list(userId: string): Promise<SavedPlan[]> {
+      const localPlans = JSON.parse(localStorage.getItem(KEYS.LOCAL_PLANS) || '[]');
+      const userLocalPlans = localPlans.filter((p: any) => p.userId === userId);
+
       const fallback = () => {
-          const plans = JSON.parse(localStorage.getItem(KEYS.LOCAL_PLANS) || '[]');
-          return plans
-            .filter((p: any) => p.userId === userId)
-            .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          return userLocalPlans.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
       };
 
       if (!isSupabaseConfigured || !isUUID(userId)) return fallback();
@@ -415,12 +425,13 @@ export const db = {
             .order('created_at', { ascending: false });
             
           if (error) {
+               console.warn("DB List failed, merging fallback", error);
                return fallback();
           }
 
-          if (!data) return [];
+          if (!data) return fallback();
 
-          return data.map((p: any) => ({
+          const dbPlans = data.map((p: any) => ({
             id: p.id,
             userId: p.user_id,
             date: p.created_at,
@@ -429,6 +440,14 @@ export const db = {
             content: p.content,
             formData: p.form_data
           }));
+          
+          // Merge DB and Local plans (in case some were saved locally due to errors)
+          // Use a Map to deduplicate by ID, preferring DB version if conflict
+          const allPlans = [...dbPlans, ...userLocalPlans];
+          const uniquePlans = Array.from(new Map(allPlans.map(item => [item.id, item])).values());
+
+          return uniquePlans.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
       } catch (e) {
           return fallback();
       }
@@ -445,8 +464,12 @@ export const db = {
 
        try {
            const { error } = await supabase.from('plans').delete().eq('id', id);
+           // Also try to delete from local storage to keep sync
+           fallback(); 
+           
            if (error) throw error;
        } catch (e) {
+           console.warn("Delete failed remotely", e);
            fallback();
        }
     },

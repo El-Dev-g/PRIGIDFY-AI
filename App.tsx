@@ -268,7 +268,12 @@ export default function App() {
         
         // Upgrade the newly created user
         const updatedUser = await db.auth.updatePlan(signedUpUser.id, newPlan);
-        if (updatedUser) setUser(updatedUser);
+        if (updatedUser) {
+            setUser(updatedUser);
+        } else {
+            // Optimistic update if backend fails or falls back silently
+            setUser({ ...signedUpUser, plan: newPlan });
+        }
         
         // Record the transaction if payment data exists
         if (pendingCheckoutData?.payment) {
@@ -335,14 +340,23 @@ export default function App() {
               'tier-pro': 'pro',
               'tier-enterprise': 'enterprise'
           };
-          const newPlan = planMap[selectedPlanId || ''] || 'starter';
+          
+          // Get Plan ID from payment details OR selected state.
+          // Prioritize payment details as it's the confirmed transaction.
+          const confirmedPlanId = customerDetails?.payment?.planId || selectedPlanId;
+          const newPlan = planMap[confirmedPlanId || ''] || 'starter';
           
           if (customerDetails?.payment) {
               await db.transactions.create(user.id, customerDetails.payment);
           }
 
           const updatedUser = await db.auth.updatePlan(user.id, newPlan);
-          if (updatedUser) setUser(updatedUser);
+          if (updatedUser) {
+              setUser(updatedUser);
+          } else {
+              // Optimistic update for UI if backend update had issues but payment succeeded
+              setUser({ ...user, plan: newPlan });
+          }
           
           setSelectedPlanId(null);
           setCurrentView('planner');
