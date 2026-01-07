@@ -29,6 +29,7 @@ const getMockUser = (): UserProfile | null => {
 
 // Helper to check if a string is a valid UUID
 const isUUID = (str: string) => {
+  if (!str) return false;
   const regex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   return regex.test(str);
 };
@@ -118,17 +119,26 @@ export const db = {
       if (!isSupabaseConfigured) return getMockUser();
 
       try {
-        // Direct call without arbitrary timeout to avoid race conditions on slow networks
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        // Create a timeout promise to prevent infinite loading
+        const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Session check timeout')), 5000)
+        );
+
+        // Race against supabase call
+        const result = await Promise.race([
+            supabase.auth.getSession(),
+            timeoutPromise
+        ]) as any;
         
-        if (sessionError) {
-             console.warn("Session check failed, using mock if available:", sessionError.message);
+        if (!result || result.error) {
+             console.warn("Session check failed or error:", result?.error);
              return getMockUser();
         }
         
+        const session = result.data.session;
+
         if (!session?.user) {
             // Check for mock user in local storage as fallback even if supabase configured
-            // This handles the transition case or mixed usage
             return getMockUser(); 
         }
 
@@ -147,7 +157,7 @@ export const db = {
 
         return mapUser(session.user, profile);
       } catch (e) {
-        console.warn("Auth initialization failed, using offline mode.", e);
+        console.warn("Auth initialization failed/timed out, using offline mode.", e);
         return getMockUser();
       }
     },
