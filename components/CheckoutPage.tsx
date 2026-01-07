@@ -4,7 +4,7 @@ import type { PlanType } from '../types';
 
 interface CheckoutPageProps {
   planId: string;
-  onComplete: (details?: { name: string; email: string }) => void;
+  onComplete: (details?: { name: string; email: string; payment?: any }) => void;
   onCancel: () => void;
 }
 
@@ -29,14 +29,23 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
       // Clean the plan code (remove quotes, whitespace) if it exists
       let cleanPlanCode = envPlanCode ? envPlanCode.replace(/['"]/g, '').trim() : '';
 
-      // Fallback if env is empty
-      if (!cleanPlanCode) {
-          cleanPlanCode = ''; // Ensure default is handled or leave blank if using amount
+      if (id.includes('pro')) {
+          return { 
+              name: 'Pro Plan', 
+              price: 'GHS 450.00', 
+              currency: 'GHS', 
+              amount: 450, 
+              planCode: cleanPlanCode 
+          };
       }
-      
-      if (id.includes('pro')) return { name: 'Pro Plan', price: 'GHS 450.00', currency: 'GHS', amount: 450, planCode: cleanPlanCode };
       // Fallback for enterprise or unknown
-      return { name: 'Enterprise Plan', price: 'GHS 1,500.00', currency: 'GHS', amount: 1500, planCode: '' };
+      return { 
+          name: 'Enterprise Plan', 
+          price: 'GHS 1,500.00', 
+          currency: 'GHS', 
+          amount: 1500, 
+          planCode: '' 
+      };
   };
 
   const plan = getPlanDetails(planId);
@@ -51,7 +60,6 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
     setIsLoading(true);
 
     if (provider === 'paystack') {
-        // Accessing the non-prefixed environment variable
         const publicKey = process.env.PAYSTACK_PUBLIC_KEY;
         
         if (!publicKey) {
@@ -67,15 +75,12 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
             return;
         }
 
-        // @ts-ignore
-        const handler = window.PaystackPop.setup({
+        // Construct Paystack Options
+        const paystackConfig: any = {
             key: publicKey,
             email: customerEmail,
-            amount: plan.amount * 100, // Amount in pesewas (lowest unit)
-            plan: plan.planCode, // Use the plan code if available
-            currency: 'GHS', // Ghana Cedis
-            
-            ref: '' + Math.floor((Math.random() * 1000000000) + 1), 
+            currency: 'GHS',
+            ref: '' + Math.floor((Math.random() * 1000000000) + 1),
             metadata: {
                 custom_fields: [
                     {
@@ -87,14 +92,36 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
             },
             callback: function(response: any) {
                 console.log("Payment complete", response);
-                // Success! Proceed to signup/upgrade
-                onComplete({ name: customerName, email: customerEmail });
+                // Success! Proceed to signup/upgrade with payment record
+                onComplete({ 
+                    name: customerName, 
+                    email: customerEmail,
+                    payment: {
+                        reference: response.reference,
+                        status: response.status || 'success',
+                        amount: plan.amount,
+                        currency: 'GHS',
+                        planId: planId
+                    }
+                });
             },
             onClose: function() {
                 setIsLoading(false);
             }
-        });
+        };
 
+        // DYNAMIC PRICING LOGIC:
+        // If a plan code is configured, pass it to Paystack and OMIT the amount.
+        // This forces Paystack to charge the amount currently set in the Dashboard for that Plan Code.
+        if (plan.planCode) {
+            paystackConfig.plan = plan.planCode;
+        } else {
+            // Fallback: Use the static amount defined in code if no plan code is found.
+            paystackConfig.amount = plan.amount * 100; // Amount in pesewas
+        }
+
+        // @ts-ignore
+        const handler = window.PaystackPop.setup(paystackConfig);
         handler.openIframe();
         return;
     }
@@ -107,7 +134,17 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
         setIsLoading(false);
         
         if (success) {
-            onComplete({ name: customerName, email: customerEmail });
+            onComplete({ 
+                name: customerName, 
+                email: customerEmail,
+                payment: {
+                    reference: 'mock-' + Date.now(),
+                    status: 'success',
+                    amount: plan.amount,
+                    currency: 'GHS',
+                    planId: planId
+                }
+            });
         }
     }, 1500);
   };

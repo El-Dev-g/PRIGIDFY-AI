@@ -108,20 +108,32 @@ export const BillingPage: React.FC<BillingPageProps> = ({ user, onSelectPlan, on
                   }
               ]
           },
-          callback: function(response: any) {
+          callback: async function(response: any) {
               console.log("Paystack authorization success:", response);
               
-              // In a real app, you would send 'response.reference' to your backend.
-              // The backend would verify the transaction using the Secret Key,
-              // then fetch the authorization code and save it to the customer profile.
-              // For this frontend-only demo, we'll simulate a successful update.
-              
-              setPaymentMethod({
+              // Simulate getting card details from response (Paystack usually returns minimal card info on client)
+              // We save the authorization reference to the DB so the backend can charge it later
+              const mockCard = {
                   brand: 'Paystack Card',
                   last4: 'Active',
                   expMonth: '--', 
                   expYear: '--'
-              });
+              };
+
+              setPaymentMethod(mockCard);
+              
+              // Save to DB
+              try {
+                   await db.auth.updateProfile(user.id, {
+                       billing_info: {
+                           paystack_auth_code: response.reference, // In real flow, this is traded for an auth code
+                           updated_at: new Date().toISOString(),
+                           last4: 'Active'
+                       }
+                   });
+              } catch(e) {
+                  console.error("Failed to save billing info", e);
+              }
               
               setIsSavingPayment(false);
               setIsEditingPayment(false);

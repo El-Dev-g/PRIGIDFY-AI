@@ -270,7 +270,7 @@ export const db = {
       }
     },
     
-    async updateProfile(userId: string, updates: { name?: string }) {
+    async updateProfile(userId: string, updates: Record<string, any>) {
       if (isSupabaseConfigured) {
          try {
              // 1. Update Profile Table
@@ -281,7 +281,7 @@ export const db = {
                 
              if (error) throw error;
 
-             // 2. Update Auth Metadata (so getUser returns correct metadata)
+             // 2. Update Auth Metadata (so getUser returns correct metadata) if name is present
              if (updates.name) {
                  await supabase.auth.updateUser({
                      data: { name: updates.name }
@@ -703,6 +703,26 @@ export const db = {
                 }]);
             } catch (e) {
                 console.error("DB Insert failed", e);
+            }
+        }
+    }
+  },
+
+  transactions: {
+    async create(userId: string, data: { reference: string; amount: number; currency: string; status: string; planId?: string }) {
+        if (isSupabaseConfigured && isUUID(userId)) {
+            try {
+                await supabase.from('transactions').insert([{
+                    user_id: userId,
+                    reference: data.reference,
+                    amount: data.amount,
+                    currency: data.currency,
+                    plan_id: data.planId,
+                    status: data.status,
+                    created_at: new Date().toISOString()
+                }]);
+            } catch (e) {
+                console.error("Failed to record transaction", e);
             }
         }
     }

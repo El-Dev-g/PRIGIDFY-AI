@@ -53,8 +53,8 @@ export default function App() {
   const [sharedPlanContent, setSharedPlanContent] = useState<string>('');
   const [currentShareId, setCurrentShareId] = useState<string | null>(null);
 
-  // Store details from checkout to pre-fill signup
-  const [pendingCheckoutData, setPendingCheckoutData] = useState<{name: string, email: string} | null>(null);
+  // Store details from checkout to pre-fill signup, including payment info
+  const [pendingCheckoutData, setPendingCheckoutData] = useState<{name: string, email: string, payment?: any} | null>(null);
 
   // Initialize Auth & View Persistence
   useEffect(() => {
@@ -186,6 +186,11 @@ export default function App() {
         const updatedUser = await db.auth.updatePlan(signedUpUser.id, newPlan);
         if (updatedUser) setUser(updatedUser);
         
+        // Record the transaction if payment data exists
+        if (pendingCheckoutData?.payment) {
+            await db.transactions.create(signedUpUser.id, pendingCheckoutData.payment);
+        }
+
         // Clear pending data
         setSelectedPlanId(null);
         setPendingCheckoutData(null);
@@ -236,10 +241,10 @@ export default function App() {
       setUser(updatedUser);
   };
 
-  const handleCheckoutComplete = async (customerDetails?: {name: string, email: string}) => {
+  const handleCheckoutComplete = async (customerDetails?: {name: string, email: string, payment?: any}) => {
       // Logic:
-      // 1. If user is logged in -> Upgrade Plan -> Go to Planner
-      // 2. If user is Guest -> Save Details -> Go to SignUp -> Create Account -> Upgrade Plan -> Go to Planner
+      // 1. If user is logged in -> Record Transaction -> Upgrade Plan -> Go to Planner
+      // 2. If user is Guest -> Save Details (inc. payment) -> Go to SignUp -> Create Account -> Upgrade Plan -> Record Transaction -> Go to Planner
       
       if (user) {
           const planMap: Record<string, PlanType> = {
@@ -248,6 +253,10 @@ export default function App() {
           };
           const newPlan = planMap[selectedPlanId || ''] || 'starter';
           
+          if (customerDetails?.payment) {
+              await db.transactions.create(user.id, customerDetails.payment);
+          }
+
           const updatedUser = await db.auth.updatePlan(user.id, newPlan);
           if (updatedUser) setUser(updatedUser);
           
