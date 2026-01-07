@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Navbar } from './components/Navbar';
 import { LandingPage } from './components/LandingPage';
 import { PricingPage } from './components/PricingPage';
@@ -55,8 +55,20 @@ export default function App() {
 
   // Store details from checkout to pre-fill signup, including payment info
   const [pendingCheckoutData, setPendingCheckoutData] = useState<{name: string, email: string, payment?: any} | null>(null);
+  
+  // Refs to access latest state in callbacks/effects without re-triggering them
+  const pendingCheckoutDataRef = useRef(pendingCheckoutData);
+  const currentViewRef = useRef(currentView);
 
-  // Initialize Auth & View Persistence
+  useEffect(() => {
+      pendingCheckoutDataRef.current = pendingCheckoutData;
+  }, [pendingCheckoutData]);
+
+  useEffect(() => {
+      currentViewRef.current = currentView;
+  }, [currentView]);
+
+  // 1. Initialize Auth & View Persistence (Runs ONCE)
   useEffect(() => {
     let mounted = true;
 
@@ -102,16 +114,28 @@ export default function App() {
     };
     initAuth();
 
-    // Setup Auth Listener
+    return () => {
+        mounted = false;
+    };
+  }, []); // Dependency array must be empty to run only once
+
+  // 2. Auth State Listener
+  useEffect(() => {
+    let mounted = true;
     const { data: subscription } = db.auth.onAuthStateChange(async (event, session) => {
         if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
              // Re-fetch full profile data via db abstraction
              const fullProfile = await db.auth.getSession();
              if (mounted && fullProfile) {
                  setUser(fullProfile);
+                 
+                 // Access current state via refs to decide navigation
+                 const isLoginView = currentViewRef.current === 'login';
+                 const hasPendingData = !!pendingCheckoutDataRef.current;
+
                  // Don't auto-redirect if we are in the middle of a signup flow (pendingCheckoutData)
                  // The handleSignup function will handle the redirection.
-                 if (currentView === 'login' && !pendingCheckoutData) {
+                 if (isLoginView && !hasPendingData) {
                      setCurrentView('planner');
                  }
              }
@@ -127,7 +151,7 @@ export default function App() {
         mounted = false;
         subscription?.subscription.unsubscribe();
     };
-  }, [pendingCheckoutData]);
+  }, []); // Run once to set up listener, use refs for dynamic state checks
 
   // Save current view state
   useEffect(() => {
@@ -267,6 +291,7 @@ export default function App() {
           if (customerDetails) {
               setPendingCheckoutData(customerDetails);
           }
+          // Explicitly set view to signup
           setCurrentView('signup');
       }
   };
