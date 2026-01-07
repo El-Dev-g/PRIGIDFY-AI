@@ -436,10 +436,39 @@ export const db = {
     },
 
     async saveDraft(userId: string, data: any) {
+      // Local Backup
       localStorage.setItem(`${KEYS.DRAFT}_${userId}`, JSON.stringify(data));
+      
+      // DB Persistence
+      if (isSupabaseConfigured && isUUID(userId)) {
+          try {
+              // Upsert draft to 'drafts' table
+              await supabase
+                  .from('drafts')
+                  .upsert({ user_id: userId, data: data, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
+          } catch (e) {
+              console.warn("Draft DB save error", e);
+          }
+      }
     },
 
     async getDraft(userId: string) {
+      // Try DB first
+      if (isSupabaseConfigured && isUUID(userId)) {
+           try {
+               const { data, error } = await supabase
+                  .from('drafts')
+                  .select('data')
+                  .eq('user_id', userId)
+                  .single();
+               
+               if (!error && data) return data.data;
+           } catch (e) {
+               // ignore and fallback
+           }
+      }
+
+      // Fallback
       const data = localStorage.getItem(`${KEYS.DRAFT}_${userId}`);
       return data ? JSON.parse(data) : null;
     }
@@ -486,33 +515,83 @@ export const db = {
   },
 
   blogs: {
-      getAll(): BlogPost[] {
-          // Initialize/Seed database if empty
+      async getAll(): Promise<BlogPost[]> {
+          let remotePosts: BlogPost[] = [];
+          
+          if (isSupabaseConfigured) {
+              try {
+                  const { data, error } = await supabase
+                    .from('blogs')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+                  
+                  if (!error && data) {
+                      remotePosts = data.map((b: any) => ({
+                          id: b.id,
+                          title: b.title,
+                          excerpt: b.excerpt,
+                          content: b.content,
+                          date: b.date_display || new Date(b.created_at).toLocaleDateString(),
+                          category: b.category,
+                          author: b.author,
+                          image: b.image,
+                          isAi: b.is_ai
+                      }));
+                  }
+              } catch (e) {
+                  console.warn("Error fetching blogs from DB", e);
+              }
+          }
+
+          // Merge with Local/Seeded
           let localPosts: BlogPost[] = JSON.parse(localStorage.getItem(KEYS.BLOG_POSTS) || '[]');
           
-          if (localPosts.length === 0) {
-              // Seed the initial state with "AI generated" posts in 2026
+          if (localPosts.length === 0 && remotePosts.length === 0) {
               localPosts = SEEDED_POSTS;
               localStorage.setItem(KEYS.BLOG_POSTS, JSON.stringify(localPosts));
           }
+
+          // Merge: Remote takes precedence if IDs conflict (though unlikely with timestamps/UUIDs)
+          // Use a Map for deduping
+          const allPosts = [...remotePosts, ...localPosts];
+          const uniqueMap = new Map();
+          allPosts.forEach(p => uniqueMap.set(p.id, p));
+          const uniquePosts = Array.from(uniqueMap.values());
           
-          return localPosts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          return uniquePosts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       },
       
-      getById(id: string | number): BlogPost | undefined {
-          const all = this.getAll();
-          // loose equality for string/number id mix
+      async getById(id: string | number): Promise<BlogPost | undefined> {
+          const all = await this.getAll();
           return all.find(p => p.id == id);
       },
 
-      add(post: BlogPost) {
+      async add(post: BlogPost) {
+          // Local Save (Immediate feedback/offline)
           const localPosts = JSON.parse(localStorage.getItem(KEYS.BLOG_POSTS) || '[]');
           localPosts.unshift(post);
-          // Keep only last 20 generated posts to avoid bloat
-          if (localPosts.length > 20) {
-              localPosts.length = 20;
-          }
+          if (localPosts.length > 20) localPosts.length = 20;
           localStorage.setItem(KEYS.BLOG_POSTS, JSON.stringify(localPosts));
+
+          // DB Save
+          if (isSupabaseConfigured) {
+              try {
+                  await supabase.from('blogs').insert([{
+                      id: post.id.toString(),
+                      title: post.title,
+                      excerpt: post.excerpt,
+                      content: post.content,
+                      category: post.category,
+                      author: post.author,
+                      image: post.image,
+                      is_ai: post.isAi,
+                      date_display: post.date,
+                      created_at: new Date().toISOString()
+                  }]);
+              } catch (e) {
+                  console.error("Failed to save blog to DB", e);
+              }
+          }
       },
 
       shouldGenerateNew(): boolean {
@@ -585,7 +664,6 @@ export const db = {
       const all = [...remoteTests, ...localTests, ...DEFAULT_TESTIMONIALS];
       
       // Filter unique by ID (Map preserves insertion order of last set, but we want arrays)
-      // We use a Map keyed by ID to ensure uniqueness
       const uniqueMap = new Map();
       all.forEach(item => {
           if (!uniqueMap.has(item.id)) {
@@ -615,8 +693,6 @@ export const db = {
 
         if (isSupabaseConfigured) {
             try {
-                // Actually insert into DB
-                // Ensure you have a 'testimonials' table in Supabase
                 await supabase.from('testimonials').insert([{
                     author: data.name,
                     role: data.role,

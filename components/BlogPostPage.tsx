@@ -17,23 +17,26 @@ export const BlogPostPage: React.FC<BlogPostPageProps> = ({ postId, onBack, onNa
 
   useEffect(() => {
     window.scrollTo(0, 0);
-    const fetchedPost = db.blogs.getById(postId);
-    
-    if (fetchedPost) {
-        setPost(fetchedPost);
+    const loadData = async () => {
+        const fetchedPost = await db.blogs.getById(postId);
+        
+        if (fetchedPost) {
+            setPost(fetchedPost);
 
-        // Calculate reading time
-        const textContent = typeof fetchedPost.content === 'string' 
-            ? fetchedPost.content.replace(/<[^>]*>/g, '') 
-            : '';
-        const words = textContent.split(/\s+/).length;
-        const minutes = Math.max(1, Math.round(words / 200));
-        setReadingTime(`${minutes} min read`);
+            // Calculate reading time
+            const textContent = typeof fetchedPost.content === 'string' 
+                ? fetchedPost.content.replace(/<[^>]*>/g, '') 
+                : '';
+            const words = textContent.split(/\s+/).length;
+            const minutes = Math.max(1, Math.round(words / 200));
+            setReadingTime(`${minutes} min read`);
 
-        // Get related posts
-        const all = db.blogs.getAll();
-        setRelatedPosts(all.filter(p => p.id !== fetchedPost.id).slice(0, 3));
-    }
+            // Get related posts
+            const all = await db.blogs.getAll();
+            setRelatedPosts(all.filter(p => p.id !== fetchedPost.id).slice(0, 3));
+        }
+    };
+    loadData();
   }, [postId]);
 
   const handleCopyLink = () => {
@@ -45,7 +48,7 @@ export const BlogPostPage: React.FC<BlogPostPageProps> = ({ postId, onBack, onNa
   if (!post) {
     return (
         <div className="min-h-[50vh] flex flex-col items-center justify-center">
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Post not found</h2>
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Loading...</h2>
             <button onClick={onBack} className="mt-4 text-indigo-600 hover:text-indigo-500 font-medium">
                 &larr; Back to blog
             </button>

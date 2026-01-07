@@ -9,12 +9,12 @@ interface BlogPageProps {
 
 export const BlogPage: React.FC<BlogPageProps> = ({ onNavigateToPost }) => {
   const [posts, setPosts] = useState<BlogPost[]>([]);
-  // We remove isAutoGenerating state for visual purposes, but keep logic
   
   useEffect(() => {
     // 1. Load initial posts
-    const loadPosts = () => {
-        setPosts(db.blogs.getAll());
+    const loadPosts = async () => {
+        const data = await db.blogs.getAll();
+        setPosts(data);
     };
     loadPosts();
 
@@ -40,7 +40,7 @@ export const BlogPage: React.FC<BlogPageProps> = ({ onNavigateToPost }) => {
                     image: 'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80'
                 };
 
-                db.blogs.add(newPost);
+                await db.blogs.add(newPost);
                 loadPosts(); // Refresh UI with new post immediately
             } catch (e) {
                 console.error("Auto-blog generation failed", e);
