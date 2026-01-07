@@ -79,10 +79,18 @@ export default function App() {
             const lastBlogPostId = sessionStorage.getItem('jhaidify_last_blog_post_id');
             const validDashboardViews = ['planner', 'history', 'profile', 'billing'];
             const publicViews = [
-              'pricing', 'about', 'blog', 'blog-post', 'careers', 
+              'landing', 'pricing', 'about', 'blog', 'blog-post', 'careers', 
               'help', 'api', 'privacy', 'terms', 'submit-testimonial', 'checkout', 'signup', 'login'
             ];
             
+            // PATH MAPPING: Parse URL path to set initial view (e.g. /signup -> 'signup')
+            let path = window.location.pathname.replace(/^\/|\/$/g, '');
+            if (path === '') path = 'landing';
+            
+            const initialViewFromPath = (validDashboardViews.includes(path) || publicViews.includes(path)) 
+                ? (path as View) 
+                : null;
+
             if (lastBlogPostId) setSelectedBlogPostId(lastBlogPostId);
 
             const session = await db.auth.getSession();
@@ -90,8 +98,10 @@ export default function App() {
             if (mounted) {
                 if (session) {
                     setUser(session);
-                    // If user is logged in, restore their last dashboard view OR public view, otherwise default to planner
-                    if (lastView && (validDashboardViews.includes(lastView) || publicViews.includes(lastView))) {
+                    // Priority: 1. URL Path (if valid), 2. Last Session View, 3. Default Planner
+                    if (initialViewFromPath && (validDashboardViews.includes(initialViewFromPath) || publicViews.includes(initialViewFromPath))) {
+                        setCurrentView(initialViewFromPath);
+                    } else if (lastView && (validDashboardViews.includes(lastView) || publicViews.includes(lastView))) {
                          setCurrentView(lastView);
                     } else if (currentView === 'landing' || currentView === 'login' || currentView === 'signup') {
                          setCurrentView('planner');
@@ -100,8 +110,10 @@ export default function App() {
                     // Not logged in
                     setUser(null);
                     
-                    // RESTORE PUBLIC VIEW if it was the last thing visited
-                    if (lastView && publicViews.includes(lastView)) {
+                    // Priority: 1. URL Path (Public only), 2. Last Session View (Public only)
+                    if (initialViewFromPath && publicViews.includes(initialViewFromPath)) {
+                         setCurrentView(initialViewFromPath);
+                    } else if (lastView && publicViews.includes(lastView)) {
                         setCurrentView(lastView);
                     }
                 }
@@ -164,10 +176,12 @@ export default function App() {
      }
   }, [currentView, selectedBlogPostId]);
 
-  // Check for shared plan in URL
+  // Check for shared plan in URL and Paystack Redirects
   useEffect(() => {
-    const checkShare = async () => {
+    const checkUrlParams = async () => {
         const params = new URLSearchParams(window.location.search);
+        
+        // 1. Check for Shared Plan
         const shareId = params.get('share');
         if (shareId) {
             const content = await db.shares.get(shareId);
@@ -180,8 +194,47 @@ export default function App() {
                 window.history.replaceState({}, '', window.location.pathname);
             }
         }
+
+        // 2. Check for Paystack Callback (Redirect Flow)
+        const paymentReference = params.get('reference') || params.get('trxref');
+        if (paymentReference) {
+            // Retrieve pending data from session storage
+            const pendingPlanId = sessionStorage.getItem('jhaidify_pending_plan_id');
+            const pendingEmail = sessionStorage.getItem('jhaidify_pending_email');
+            const pendingName = sessionStorage.getItem('jhaidify_pending_name');
+            const pendingAmount = sessionStorage.getItem('jhaidify_pending_amount');
+
+            if (pendingPlanId && pendingEmail && pendingName) {
+                // Construct the pending data object
+                const checkoutData = {
+                    name: pendingName,
+                    email: pendingEmail,
+                    payment: {
+                        reference: paymentReference,
+                        status: 'success', // We assume success on callback return for this flow
+                        amount: pendingAmount ? parseFloat(pendingAmount) : 0,
+                        currency: 'GHS',
+                        planId: pendingPlanId
+                    }
+                };
+                
+                // Set the pending data to trigger the signup/upgrade flow
+                setPendingCheckoutData(checkoutData);
+                setSelectedPlanId(pendingPlanId);
+                
+                // Clean up URL and Storage
+                window.history.replaceState({}, '', window.location.pathname);
+                sessionStorage.removeItem('jhaidify_pending_plan_id');
+                sessionStorage.removeItem('jhaidify_pending_email');
+                sessionStorage.removeItem('jhaidify_pending_name');
+                sessionStorage.removeItem('jhaidify_pending_amount');
+
+                // Explicitly switch to signup view to complete the process
+                setCurrentView('signup');
+            }
+        }
     };
-    checkShare();
+    checkUrlParams();
   }, []);
 
   const handleLogin = (loggedInUser: UserProfile) => {

@@ -59,6 +59,12 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
 
     setIsLoading(true);
 
+    // Save state in case of redirect
+    sessionStorage.setItem('jhaidify_pending_plan_id', planId);
+    sessionStorage.setItem('jhaidify_pending_email', customerEmail);
+    sessionStorage.setItem('jhaidify_pending_name', customerName);
+    sessionStorage.setItem('jhaidify_pending_amount', plan.amount.toString());
+
     if (provider === 'paystack') {
         const publicKey = process.env.PAYSTACK_PUBLIC_KEY;
         
@@ -92,6 +98,12 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ planId, onComplete, 
             },
             callback: function(response: any) {
                 console.log("Payment complete", response);
+                // Clear pending session data on success
+                sessionStorage.removeItem('jhaidify_pending_plan_id');
+                sessionStorage.removeItem('jhaidify_pending_email');
+                sessionStorage.removeItem('jhaidify_pending_name');
+                sessionStorage.removeItem('jhaidify_pending_amount');
+
                 // Success! Proceed to signup/upgrade with payment record
                 onComplete({ 
                     name: customerName, 
