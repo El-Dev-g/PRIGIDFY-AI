@@ -18,6 +18,7 @@ import { TermsPage } from './components/TermsPage';
 import { ResultStep } from './components/ResultStep';
 import { CheckoutPage } from './components/CheckoutPage';
 import { TestimonialSubmissionPage } from './components/TestimonialSubmissionPage';
+import { ContactPage } from './components/ContactPage';
 import { db } from './services/db';
 import type { UserProfile, PlanType } from './types';
 
@@ -40,7 +41,8 @@ export type View =
   | 'terms'
   | 'shared-plan'
   | 'checkout'
-  | 'submit-testimonial';
+  | 'submit-testimonial'
+  | 'contact';
 
 export default function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -80,7 +82,7 @@ export default function App() {
             const validDashboardViews = ['planner', 'history', 'profile', 'billing'];
             const publicViews = [
               'landing', 'pricing', 'about', 'blog', 'blog-post', 'careers', 
-              'help', 'api', 'privacy', 'terms', 'submit-testimonial', 'checkout', 'signup', 'login'
+              'help', 'api', 'privacy', 'terms', 'submit-testimonial', 'checkout', 'signup', 'login', 'contact'
             ];
             
             // PATH MAPPING: Parse URL path to set initial view (e.g. /signup -> 'signup')
@@ -444,7 +446,7 @@ export default function App() {
       case 'careers':
         return <CareersPage />;
       case 'help':
-        return <HelpCenterPage />;
+        return <HelpCenterPage onNavigate={setCurrentView} />;
       case 'api':
         return <ApiDocsPage user={user} />;
       case 'privacy':
@@ -453,6 +455,8 @@ export default function App() {
         return <TermsPage />;
       case 'submit-testimonial':
         return <TestimonialSubmissionPage onNavigate={setCurrentView} />;
+      case 'contact':
+        return <ContactPage />;
       case 'shared-plan':
         return (
             <div className="max-w-7xl mx-auto px-4 py-12">

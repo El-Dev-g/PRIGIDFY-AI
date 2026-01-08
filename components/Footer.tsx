@@ -49,6 +49,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                 <ul role="list" className="mt-6 space-y-4">
                    <li><button onClick={() => onNavigate('about')} className="text-sm leading-6 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">About</button></li>
                    <li><button onClick={() => onNavigate('blog')} className="text-sm leading-6 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">Blog</button></li>
+                   <li><button onClick={() => onNavigate('contact')} className="text-sm leading-6 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">Contact</button></li>
                 </ul>
               </div>
             </div>
@@ -57,6 +58,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                 <h3 className="text-sm font-semibold leading-6 text-slate-900 dark:text-white">Support</h3>
                 <ul role="list" className="mt-6 space-y-4">
                    <li><button onClick={() => onNavigate('help')} className="text-sm leading-6 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">Help Center</button></li>
+                   <li><button onClick={() => onNavigate('contact')} className="text-sm leading-6 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">Contact Us</button></li>
                 </ul>
               </div>
               <div className="mt-10 md:mt-0">

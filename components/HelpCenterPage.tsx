@@ -1,5 +1,10 @@
 
 import React from 'react';
+import { View } from '../App';
+
+interface HelpCenterPageProps {
+    onNavigate?: (view: View) => void;
+}
 
 const faqs = [
   {
@@ -20,7 +25,7 @@ const faqs = [
   },
 ];
 
-export const HelpCenterPage: React.FC = () => {
+export const HelpCenterPage: React.FC<HelpCenterPageProps> = ({ onNavigate }) => {
   return (
     <div className="bg-white dark:bg-slate-900 py-24 sm:py-32 animate-fade-in">
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
@@ -47,7 +52,13 @@ export const HelpCenterPage: React.FC = () => {
         </div>
         <div className="mt-16 text-center">
              <p className="text-base font-semibold text-slate-900 dark:text-white">Still have questions?</p>
-             <a href="mailto:support@jhaidify.ai" className="mt-2 text-sm text-indigo-600 hover:text-indigo-500">Contact Support &rarr;</a>
+             {onNavigate ? (
+                 <button onClick={() => onNavigate('contact')} className="mt-2 text-sm text-indigo-600 hover:text-indigo-500">
+                    Contact Support &rarr;
+                 </button>
+             ) : (
+                 <a href="/contact" className="mt-2 text-sm text-indigo-600 hover:text-indigo-500">Contact Support &rarr;</a>
+             )}
         </div>
       </div>
     </div>
