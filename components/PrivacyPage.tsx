@@ -7,7 +7,7 @@ export const PrivacyPage: React.FC = () => {
       <div className="mx-auto max-w-3xl text-base leading-7 text-slate-700 dark:text-slate-300">
         <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-4xl">Privacy Policy</h1>
         <p className="mt-6 text-xl leading-8">
-          Last updated: August 25, 2024
+          Last updated: March 15, 2026
         </p>
         <div className="mt-10 max-w-2xl">
           <p>

@@ -72,7 +72,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
           </div>
         </div>
         <div className="mt-16 border-t border-slate-900/10 dark:border-white/10 pt-8 sm:mt-20 lg:mt-24">
-          <p className="text-xs leading-5 text-slate-500 dark:text-slate-400">&copy; {new Date().getFullYear()} JHAIDIFY AI Inc. All rights reserved.</p>
+          <p className="text-xs leading-5 text-slate-500 dark:text-slate-400">&copy; 2026 JHAIDIFY AI Inc. All rights reserved.</p>
         </div>
       </div>
     </footer>

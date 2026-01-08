@@ -22,7 +22,7 @@ export const AboutPage: React.FC = () => {
           <div>
             <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">Our Story</h3>
             <p className="text-lg text-slate-600 dark:text-slate-400 mb-6">
-              Founded in 2024, JHAIDIFY AI started with a simple observation: too many brilliant business ideas fail because founders get stuck on the paperwork. Writing a business plan is often seen as a tedious hurdle rather than a strategic exercise.
+              Founded in 2026, JHAIDIFY AI started with a simple observation: too many brilliant business ideas fail because founders get stuck on the paperwork. Writing a business plan is often seen as a tedious hurdle rather than a strategic exercise.
             </p>
             <p className="text-lg text-slate-600 dark:text-slate-400">
               We combined modern generative AI with expert business methodology to create a tool that acts as a co-founder. It asks the right questions, structures the answers, and polishes the prose, letting entrepreneurs focus on what they do best: building.
