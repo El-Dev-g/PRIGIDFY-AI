@@ -269,9 +269,15 @@ export const generateBusinessPlan = async (formData: FormData, planType: PlanTyp
 
     let planText = textResponse.text || "";
 
-    // 2. Generate Images Sequentially (staggered)
-    // Generating images in parallel often hits API limits on free tiers. 
-    // We add a small delay and process them.
+    // 2. Image Generation Disabled
+    // To re-enable, uncomment the code below and remove the placeholder stripping loop.
+    
+    const placeholders = ['{{CONCEPT_IMAGE}}', '{{ORG_CHART_IMAGE}}', '{{FINANCIAL_CHART_IMAGE}}'];
+    for (const placeholder of placeholders) {
+        planText = planText.replace(placeholder, '');
+    }
+
+    /* IMAGE GENERATION DISABLED
     const conceptPrompt = `A high quality, professional, cinematic concept photo representing this business idea: ${formData.businessIdea} (Company Name: ${formData.businessName}). The image should visually communicate the core value proposition.`;
     const orgChartPrompt = `A clean, professional corporate organizational chart diagram structure for a ${formData.businessIdea} business named ${formData.businessName}. Infographic style, white background, minimalist design, showing hierarchy.`;
     const financialPrompt = `A professional business bar chart diagram showing projected positive revenue growth over 3 years. Clean 3D design, white background, blue and green colors, corporate style, upward trend.`;
@@ -293,6 +299,7 @@ export const generateBusinessPlan = async (formData: FormData, planType: PlanTyp
             planText = planText.replace(req.placeholder, '');
         }
     }
+    */
 
     return planText;
 
